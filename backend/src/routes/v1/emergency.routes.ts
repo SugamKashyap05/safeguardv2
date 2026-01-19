@@ -2,7 +2,7 @@ import { Router } from 'express';
 // @ts-ignore
 import { EmergencyController } from '../../controllers/emergency.controller';
 import { asyncWrapper } from '../../utils/asyncWrapper';
-import { requireParent } from '../../middleware/auth';
+import { requireParent } from '../../middleware/auth.middleware';
 
 const router = Router();
 

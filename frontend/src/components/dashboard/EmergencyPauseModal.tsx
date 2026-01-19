@@ -1,4 +1,3 @@
-import React from 'react';
 import { useForm } from 'react-hook-form';
 import { X, PauseCircle } from 'lucide-react';
 // @ts-ignore
