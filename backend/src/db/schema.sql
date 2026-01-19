@@ -518,3 +518,18 @@ CREATE POLICY approved_videos_parent ON public.approved_videos
   );
 
 -- End of SAFE DROP & RECREATE script
+
+-- 20. Weekly Reports
+CREATE TABLE IF NOT EXISTS weekly_reports (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  parent_id UUID REFERENCES parents(id) ON DELETE CASCADE,
+  week_start_date DATE NOT NULL,
+  week_end_date DATE NOT NULL,
+  summary JSONB DEFAULT '{}'::jsonb,
+  children_reports JSONB DEFAULT '[]'::jsonb,
+  generated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  is_viewed BOOLEAN DEFAULT false,
+  UNIQUE(parent_id, week_start_date)
+);
+
+CREATE INDEX IF NOT EXISTS idx_weekly_reports_parent_id ON weekly_reports(parent_id);

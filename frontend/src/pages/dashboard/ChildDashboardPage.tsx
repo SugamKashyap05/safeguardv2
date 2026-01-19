@@ -3,6 +3,8 @@ import { motion } from 'framer-motion';
 import { Search, LogOut } from 'lucide-react';
 import { api } from '../../services/api';
 import { ChildTimer } from '../../components/children/ChildTimer';
+import { SafeVideoPlayer } from '../../components/children/SafeVideoPlayer';
+import { VideoPlayerModal } from '../../components/children/VideoPlayerModal'; // Keeping for fallback if needed, or remove
 // @ts-ignore
 import { useNavigate, useLocation } from 'react-router-dom';
 
@@ -11,6 +13,8 @@ export const ChildDashboardPage = () => {
     const [videos, setVideos] = useState<any[]>([]);
     const [searchQuery, setSearchQuery] = useState('');
     const [loading, setLoading] = useState(false);
+    const [suggestions, setSuggestions] = useState<string[]>([]);
+    const [showSuggestions, setShowSuggestions] = useState(false);
 
     // Retrieve child from local storage or context (Simulated for this MVP)
     // In real app, we'd use a Context Provider.
@@ -22,21 +26,54 @@ export const ChildDashboardPage = () => {
             navigate('/child/login');
             return;
         }
-        // Load initial recommended videos (or trending)
-        searchVideos('cartoons');
+        // Load Recommendations
+        loadRecommendations();
+        loadSuggestions();
     }, [childId]);
+
+    const loadSuggestions = async () => {
+        try {
+            const res = await api.get(`/search/suggestions/${childId}`);
+            setSuggestions(res.data.data || []);
+        } catch (e) {
+            console.error('Failed suggestions', e);
+        }
+    };
+
+    const loadRecommendations = async () => {
+        setLoading(true);
+        try {
+            const [pRes, tRes, eRes] = await Promise.all([
+                api.get(`/recommendations/${childId}/personalized`),
+                api.get(`/recommendations/${childId}/trending`),
+                api.get(`/recommendations/${childId}/educational`)
+            ]);
+            setPersonalized(pRes.data.data.items);
+            setTrending(tRes.data.data.items);
+            setEducational(eRes.data.data.items);
+        } catch (err) {
+            console.error(err);
+        } finally {
+            setLoading(false);
+        }
+    };
 
     const searchVideos = async (query: string) => {
         setLoading(true);
         try {
-            // Use the YouTube service endpoint
-            // Pass 'childId' header or query param if needed for content filtering, 
-            // but the backend might infer it from session token if we had one.
-            // For now, let's just use the public search but add childId to query for filtering if backend supports it.
-            const res = await api.get(`/youtube/search`, { params: { q: query, childId } });
-            setVideos(res.data.data.items || []);
-        } catch (err) {
+            // Use the Safe Search endpoint
+            const res = await api.get(`/search`, { params: { q: query, childId } });
+            // If searching, we replace the "view" with search results
+            // But maybe we should have a "Search Mode"? 
+            // For MVP, if query exists, show grid of results. If not, show Sections.
+            setVideos(res.data.data || []);
+            setShowSuggestions(false);
+        } catch (err: any) {
             console.error('Search failed', err);
+            if (err.response?.status === 400) {
+                alert(err.response.data.message || 'That search didn\'t look safe. Try something else!');
+                setSearchQuery('');
+            }
         } finally {
             setLoading(false);
         }
@@ -92,6 +129,7 @@ export const ChildDashboardPage = () => {
                         <input
                             type="text"
                             value={searchQuery}
+                            onFocus={() => setShowSuggestions(true)}
                             onChange={(e) => setSearchQuery(e.target.value)}
                             placeholder="What do you want to watch?"
                             className="w-full p-4 text-lg font-bold text-gray-700 placeholder-gray-300 outline-none"
@@ -144,3 +182,83 @@ export const ChildDashboardPage = () => {
         </div>
     );
 };
+
+// --- Sub Comps ---
+
+const Section = ({ title, videos, onPlay, color, icon }: any) => {
+    if (!videos || videos.length === 0) return null;
+    return (
+        <div className="max-w-[95vw] mx-auto">
+            <div className="flex items-center gap-3 mb-6 px-4">
+                <span className="text-2xl">{icon}</span>
+                <h2 className={`text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r ${color}`}>{title}</h2>
+            </div>
+
+            {/* Horizontal Scroll */}
+            <div className="flex gap-6 overflow-x-auto pb-8 px-4 snap-x hide-scrollbar">
+                {videos.map((video: any) => (
+                    <div key={video.videoId} className="snap-start shrink-0 w-[280px] sm:w-[320px]">
+                        <VideoCard video={video} onPlay={onPlay} />
+                    </div>
+                ))}
+            </div>
+        </div>
+    );
+};
+
+const VideoCard = ({ video, onPlay }: any) => (
+    <motion.div
+        whileHover={{ scale: 1.05, y: -5 }}
+        className="bg-white rounded-3xl overflow-hidden shadow-lg border border-gray-50 cursor-pointer group h-full flex flex-col"
+        onClick={() => onPlay({
+            id: { videoId: video.videoId },
+            snippet: {
+                title: video.title,
+                channelTitle: video.channelTitle,
+                description: '',
+                thumbnails: { high: { url: video.thumbnail }, default: { url: video.thumbnail } }
+            }
+        })}
+    >
+        <div className="aspect-video relative overflow-hidden bg-gray-100">
+            <img src={video.thumbnail} alt="" className="w-full h-full object-cover" />
+            <div className="absolute inset-0 bg-black/10 group-hover:bg-transparent transition-colors" />
+            <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                <div className="w-14 h-14 bg-white/90 text-black rounded-full flex items-center justify-center shadow-xl">
+                    <div className="ml-1 w-0 h-0 border-t-[8px] border-t-transparent border-l-[14px] border-l-black border-b-[8px] border-b-transparent" />
+                </div>
+            </div>
+            <span className="absolute bottom-2 right-2 bg-black/70 text-white text-[10px] font-bold px-2 py-0.5 rounded-md">
+                10:05
+            </span>
+        </div>
+        <div className="p-4 flex-1 flex flex-col">
+            <h3 className="font-bold text-gray-800 line-clamp-2 leading-tight mb-auto">
+                {video.title}
+            </h3>
+            <div className="mt-3 flex items-center justify-between">
+                <p className="text-xs font-bold text-gray-400 uppercase tracking-wide truncate pr-2">
+                    {video.channelTitle}
+                </p>
+                {/* <span className="w-2 h-2 rounded-full bg-green-400" title="Safe" /> */}
+            </div>
+        </div>
+    </motion.div>
+);
+
+const VideoGrid = ({ videos, onPlay }: any) => (
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 px-4">
+        {videos.map((video: any) => (
+            <VideoCard
+                key={video.id.videoId}
+                video={{
+                    videoId: video.id.videoId,
+                    title: video.snippet.title,
+                    thumbnail: video.snippet.thumbnails.high.url,
+                    channelTitle: video.snippet.channelTitle
+                }}
+                onPlay={onPlay}
+            />
+        ))}
+    </div>
+);

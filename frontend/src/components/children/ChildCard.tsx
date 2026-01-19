@@ -1,15 +1,17 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Edit2, Pause, Play, Clock, Activity, Settings } from 'lucide-react';
+import { Edit2, Pause, Play, Clock, Activity, Settings, Youtube } from 'lucide-react';
 import clsx from 'clsx';
 
 interface ChildCardProps {
     child: any;
-    onEdit: (child: any) => void;
+    onEdit: (childId: string) => void;
+    onViewActivity: (childId: string) => void;
+    onManageChannels: (childId: string) => void;
     onTogglePause: (child: any) => void;
 }
 
-export const ChildCard: React.FC<ChildCardProps> = ({ child, onEdit, onTogglePause }) => {
+export const ChildCard: React.FC<ChildCardProps> = ({ child, onEdit, onViewActivity, onManageChannels, onTogglePause }) => {
     const isPaused = !child.is_active || (child.paused_until && new Date(child.paused_until) > new Date());
 
     // Mock usage data for now
@@ -78,7 +80,16 @@ export const ChildCard: React.FC<ChildCardProps> = ({ child, onEdit, onTogglePau
                 >
                     <Settings size={16} /> Regulations
                 </button>
-                <button className="flex-1 py-2 flex items-center justify-center gap-2 text-sm font-bold text-gray-400 bg-gray-50 rounded-xl hover:bg-yellow-50 hover:text-yellow-700 transition-colors">
+                <button
+                    onClick={() => onManageChannels(child.id)}
+                    className="flex-1 py-2 flex items-center justify-center gap-2 text-sm font-bold text-red-500 bg-red-50 rounded-xl hover:bg-red-100 transition-colors"
+                >
+                    <Youtube size={16} /> Channels
+                </button>
+                <button
+                    onClick={() => onViewActivity(child.id)}
+                    className="flex-1 py-2 flex items-center justify-center gap-2 text-sm font-bold text-gray-400 bg-gray-50 rounded-xl hover:bg-yellow-50 hover:text-yellow-700 transition-colors"
+                >
                     <Activity size={16} /> Activity
                 </button>
             </div>

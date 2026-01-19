@@ -20,6 +20,18 @@ import filterRouter from './content-filter.routes';
 import dashboardRouter from './dashboard.routes';
 // @ts-ignore
 import screenTimeRouter from './screen-time.routes';
+// @ts-ignore
+import watchRouter from './watch.routes';
+// @ts-ignore
+import channelRouter from './channel.routes';
+// @ts-ignore
+import notificationRouter from './notification.routes';
+// @ts-ignore
+import recommendationRouter from './recommendation.routes';
+// @ts-ignore
+import searchRouter from './search.routes';
+// @ts-ignore
+import reportRouter from './report.routes';
 
 const router = Router();
 
@@ -47,5 +59,11 @@ router.use('/children', childRouter);
 router.use('/youtube', youtubeRouter);
 router.use('/filters', filterRouter);
 router.use('/screentime', screenTimeRouter);
+router.use('/watch', watchRouter);
+router.use('/channels', channelRouter);
+router.use('/notifications', notificationRouter);
+router.use('/recommendations', recommendationRouter);
+router.use('/search', searchRouter);
+router.use('/reports', reportRouter);
 
 export default router;
