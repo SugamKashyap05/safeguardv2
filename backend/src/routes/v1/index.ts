@@ -32,6 +32,8 @@ import recommendationRouter from './recommendation.routes';
 import searchRouter from './search.routes';
 // @ts-ignore
 import reportRouter from './report.routes';
+// @ts-ignore
+import emergencyRouter from './emergency.routes';
 
 const router = Router();
 
@@ -65,5 +67,6 @@ router.use('/notifications', notificationRouter);
 router.use('/recommendations', recommendationRouter);
 router.use('/search', searchRouter);
 router.use('/reports', reportRouter);
+router.use('/emergency', emergencyRouter);
 
 export default router;
