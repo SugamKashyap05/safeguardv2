@@ -1,0 +1,220 @@
+{
+    "client": "Thunder Client",
+    "collectionName": "Safeguard API",
+    "dateExported": "2024-01-20T12:00:00.000Z",
+    "version": "1.1",
+    "folders": [
+        {
+            "_id": "folder_health",
+            "name": "Health",
+            "containerId": "",
+            "created": "2024-01-20T12:00:00.000Z",
+            "sortNum": 10
+        },
+        {
+            "_id": "folder_auth",
+            "name": "Authentication",
+            "containerId": "",
+            "created": "2024-01-20T12:00:00.000Z",
+            "sortNum": 20
+        },
+        {
+            "_id": "folder_users",
+            "name": "Users",
+            "containerId": "",
+            "created": "2024-01-20T12:00:00.000Z",
+            "sortNum": 30
+        },
+        {
+            "_id": "folder_children",
+            "name": "Children",
+            "containerId": "",
+            "created": "2024-01-20T12:00:00.000Z",
+            "sortNum": 40
+        }
+    ],
+    "requests": [
+        {
+            "_id": "req_health",
+            "colId": "col_safeguard",
+            "containerId": "folder_health",
+            "name": "Check Health",
+            "url": "{{baseUrl}}/health",
+            "method": "GET",
+            "sortNum": 10,
+            "created": "2024-01-20T12:00:00.000Z",
+            "modified": "2024-01-20T12:00:00.000Z",
+            "headers": [],
+            "params": [],
+            "tests": [
+                {
+                    "type": "res-code",
+                    "custom": "",
+                    "action": "equal",
+                    "value": "200"
+                },
+                {
+                    "type": "res-body",
+                    "custom": "success",
+                    "action": "equal",
+                    "value": "true"
+                }
+            ]
+        },
+        {
+            "_id": "req_signup",
+            "colId": "col_safeguard",
+            "containerId": "folder_auth",
+            "name": "Parent Signup",
+            "url": "{{baseUrl}}/auth/parent/signup",
+            "method": "POST",
+            "sortNum": 10,
+            "created": "2024-01-20T12:00:00.000Z",
+            "modified": "2024-01-20T12:00:00.000Z",
+            "headers": [],
+            "params": [],
+            "body": {
+                "type": "json",
+                "raw": "{\n  \"email\": \"test_parent@example.com\",\n  \"password\": \"SecurePass1!\",\n  \"name\": \"Test Parent\"\n}",
+                "form": []
+            },
+            "tests": [
+                {
+                    "type": "res-code",
+                    "custom": "",
+                    "action": "equal",
+                    "value": "201"
+                }
+            ]
+        },
+        {
+            "_id": "req_login",
+            "colId": "col_safeguard",
+            "containerId": "folder_auth",
+            "name": "Parent Login",
+            "url": "{{baseUrl}}/auth/parent/login",
+            "method": "POST",
+            "sortNum": 20,
+            "created": "2024-01-20T12:00:00.000Z",
+            "modified": "2024-01-20T12:00:00.000Z",
+            "headers": [],
+            "params": [],
+            "body": {
+                "type": "json",
+                "raw": "{\n  \"email\": \"test_parent@example.com\",\n  \"password\": \"SecurePass1!\"\n}",
+                "form": []
+            },
+            "tests": [
+                {
+                    "type": "res-code",
+                    "custom": "",
+                    "action": "equal",
+                    "value": "200"
+                },
+                {
+                    "type": "set-env-var",
+                    "custom": "json.data.session.access_token",
+                    "action": "setto",
+                    "value": "{{authToken}}"
+                },
+                {
+                    "type": "set-env-var",
+                    "custom": "json.data.session.refresh_token",
+                    "action": "setto",
+                    "value": "{{refreshToken}}"
+                }
+            ]
+        },
+        {
+            "_id": "req_refresh",
+            "colId": "col_safeguard",
+            "containerId": "folder_auth",
+            "name": "Refresh Token",
+            "url": "{{baseUrl}}/auth/parent/refresh",
+            "method": "POST",
+            "sortNum": 30,
+            "created": "2024-01-20T12:00:00.000Z",
+            "modified": "2024-01-20T12:00:00.000Z",
+            "headers": [],
+            "params": [],
+            "body": {
+                "type": "json",
+                "raw": "{\n  \"refresh_token\": \"{{refreshToken}}\"\n}",
+                "form": []
+            },
+            "tests": [
+                {
+                    "type": "res-code",
+                    "custom": "",
+                    "action": "equal",
+                    "value": "200"
+                }
+            ]
+        },
+        {
+            "_id": "req_me",
+            "colId": "col_safeguard",
+            "containerId": "folder_users",
+            "name": "Get Me",
+            "url": "{{baseUrl}}/parents/me",
+            "method": "GET",
+            "sortNum": 10,
+            "created": "2024-01-20T12:00:00.000Z",
+            "modified": "2024-01-20T12:00:00.000Z",
+            "headers": [
+                {
+                    "name": "Authorization",
+                    "value": "Bearer {{authToken}}"
+                }
+            ],
+            "params": [],
+            "tests": [
+                {
+                    "type": "res-code",
+                    "custom": "",
+                    "action": "equal",
+                    "value": "200"
+                },
+                {
+                    "type": "res-body",
+                    "custom": "success",
+                    "action": "equal",
+                    "value": "true"
+                }
+            ]
+        },
+        {
+            "_id": "req_list_children",
+            "colId": "col_safeguard",
+            "containerId": "folder_children",
+            "name": "List Children",
+            "url": "{{baseUrl}}/children",
+            "method": "GET",
+            "sortNum": 10,
+            "created": "2024-01-20T12:00:00.000Z",
+            "modified": "2024-01-20T12:00:00.000Z",
+            "headers": [
+                {
+                    "name": "Authorization",
+                    "value": "Bearer {{authToken}}"
+                }
+            ],
+            "params": [],
+            "tests": [
+                {
+                    "type": "res-code",
+                    "custom": "",
+                    "action": "equal",
+                    "value": "200"
+                }
+            ]
+        }
+    ],
+    "settings": {
+        "headers": [],
+        "tests": [],
+        "options": {
+            "baseUrl": "http://localhost:3000/api/v1"
+        }
+    }
+}
