@@ -1,12 +1,13 @@
-import React from 'react';
+
 // @ts-ignore
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { SignupPage } from './pages/onboarding/SignupPage';
+import { SignupWizard as SignupPage } from './pages/onboarding/SignupPage';
 import { ChildLoginPage } from './pages/auth/ChildLoginPage';
 import { ChildDashboardPage } from './pages/dashboard/ChildDashboardPage';
 import { ParentDashboardPage } from './pages/dashboard/ParentDashboardPage';
 import { ChildManagementPage } from './pages/dashboard/ChildManagementPage';
 import { ChannelManagementPage } from './pages/dashboard/ChannelManagementPage';
+import { NotificationCenterPage } from './pages/dashboard/NotificationCenterPage';
 // @ts-ignore
 import { ParentActivityPage } from './pages/dashboard/ParentActivityPage'; // Assuming this exists or I will create it/mapped it previously
 
@@ -26,6 +27,7 @@ function App() {
                 <Route path="/parent/dashboard" element={<ParentDashboardPage />} />
                 <Route path="/parent/children" element={<ChildManagementPage />} />
                 <Route path="/parent/channels/:childId" element={<ChannelManagementPage />} />
+                <Route path="/parent/notifications" element={<NotificationCenterPage />} />
                 {/* <Route path="/parent/activity/:childId" element={<ParentActivityPage />} /> */}
 
                 {/* Fallback */}

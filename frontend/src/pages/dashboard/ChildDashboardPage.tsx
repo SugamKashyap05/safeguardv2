@@ -45,12 +45,21 @@ export const ChildDashboardPage = () => {
 
     const checkStatus = async () => {
         try {
-            // Check potential pause status via a sensitive endpoint
-            await api.get(`/search/history/${childId}`);
-        } catch (e: any) {
-            if (e.response?.status === 403) {
+            const res = await api.get(`/children/${childId}/status`);
+            const { isActive, pauseReason } = res.data.data;
+
+            if (!isActive) {
                 setIsPaused(true);
-                setPauseReason(e.response?.data?.message || "Paused");
+                setPauseReason(pauseReason || "Paused by parent");
+            } else {
+                setIsPaused(false);
+                setPauseReason(null);
+            }
+        } catch (e: any) {
+            console.error("Status check failed", e);
+            // If 403/401, it might mean completely locked out or invalid session
+            if (e.response?.status === 401 || e.response?.status === 403) {
+                // Potentially force logout or show lock
             }
         }
     };

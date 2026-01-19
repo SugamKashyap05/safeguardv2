@@ -1,8 +1,9 @@
-import React, { useEffect, useState } from 'react';
-import { motion } from 'framer-motion';
+import { useState, useEffect } from 'react';
 import { api } from '../../services/api';
+
 import { StatsOverview } from '../../components/dashboard/StatsOverview';
 import { ActivityFeed } from '../../components/dashboard/ActivityFeed';
+import { NotificationBell } from '../../components/dashboard/NotificationBell';
 // @ts-ignore
 import { ChildManagementPage } from './ChildManagementPage'; // We can reuse grid or just link to it
 import { PlusCircle, Shield, Settings } from 'lucide-react';
@@ -11,7 +12,7 @@ import { useNavigate } from 'react-router-dom';
 export const ParentDashboardPage = () => {
     const navigate = useNavigate(); // Assuming react-router
     const [stats, setStats] = useState(null);
-    const [activity, setActivity] = useState(null);
+    const [activity, setActivity] = useState<any>(null);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
@@ -44,6 +45,7 @@ export const ParentDashboardPage = () => {
                     <p className="text-gray-500">Overview of your family's digital safety</p>
                 </div>
                 <div className="flex gap-3">
+                    <NotificationBell />
                     <button className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-xl text-sm font-medium text-gray-700 hover:bg-gray-50">
                         <Settings size={18} /> Settings
                     </button>

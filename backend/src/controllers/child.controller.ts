@@ -99,4 +99,37 @@ export class ChildController {
         const children = await childService.getChildren(req.user.id); // Use authenticated user
         return ApiResponse.success(res, children, 'Children retrieved successfully');
     }
+    /**
+     * Get Child Status (Active/Paused) - for Child Dashboard
+     * GET /api/v1/children/:id/status
+     */
+    static async getStatus(req: Request, res: Response) {
+        // If accessed via Parent Token
+        if (req.user) {
+            const { id } = req.params;
+            const child = await childService.getChild(id, req.user.id);
+            return ApiResponse.success(res, {
+                isActive: child.is_active,
+                pauseReason: child.pause_reason,
+                pausedUntil: child.paused_until
+            }, 'Child status retrieved');
+        }
+
+        // If accessed via Child Token
+        if (req.child) {
+            // Ensure child can only check their own status
+            if (req.params.id !== req.child.id) {
+                return ApiResponse.error(res, 'Unauthorized', HTTP_STATUS.FORBIDDEN);
+            }
+            // We can re-fetch from DB to get latest status
+            const child = await childService.getChild(req.child.id, req.child.parentId);
+            return ApiResponse.success(res, {
+                isActive: child.is_active,
+                pauseReason: child.pause_reason,
+                pausedUntil: child.paused_until
+            }, 'Child status retrieved');
+        }
+
+        return ApiResponse.error(res, 'Unauthorized', HTTP_STATUS.UNAUTHORIZED);
+    }
 }

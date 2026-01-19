@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Bell, Check, Trash2, X } from 'lucide-react';
+import { Bell, Check } from 'lucide-react';
 import { api } from '../../services/api';
 import { motion, AnimatePresence } from 'framer-motion';
 // @ts-ignore
@@ -111,7 +111,7 @@ export const NotificationBell = () => {
                                     >
                                         <div className="flex gap-3">
                                             <div className={`mt-1 w-2 h-2 rounded-full shrink-0 ${notif.priority === 'high' ? 'bg-red-500' :
-                                                    notif.priority === 'medium' ? 'bg-yellow-500' : 'bg-blue-500'
+                                                notif.priority === 'medium' ? 'bg-yellow-500' : 'bg-blue-500'
                                                 }`} />
                                             <div className="flex-1">
                                                 <h4 className={`text-sm ${!notif.is_read ? 'font-bold text-gray-900' : 'font-medium text-gray-700'}`}>
@@ -138,7 +138,13 @@ export const NotificationBell = () => {
                         </div>
 
                         <div className="p-3 bg-gray-50 border-t border-gray-100 text-center">
-                            <button className="text-xs font-bold text-gray-500 hover:text-gray-900">
+                            <button
+                                onClick={() => {
+                                    setIsOpen(false);
+                                    navigate('/parent/notifications');
+                                }}
+                                className="text-xs font-bold text-gray-500 hover:text-gray-900"
+                            >
                                 View All History
                             </button>
                         </div>
