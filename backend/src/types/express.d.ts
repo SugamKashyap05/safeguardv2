@@ -3,7 +3,7 @@ import { Parent, Child } from '../models/types';
 declare global {
     namespace Express {
         interface Request {
-            user?: any; // Supabase User
+            user?: any;
             parent?: Parent;
             child?: {
                 id: string;

@@ -533,3 +533,29 @@ CREATE TABLE IF NOT EXISTS weekly_reports (
 );
 
 CREATE INDEX IF NOT EXISTS idx_weekly_reports_parent_id ON weekly_reports(parent_id);
+
+-- 21. Devices Table
+CREATE TABLE IF NOT EXISTS devices (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    child_id UUID REFERENCES children(id) ON DELETE CASCADE,
+    device_id VARCHAR(255) NOT NULL, -- Unique hardware/local ID
+    device_name VARCHAR(255) NOT NULL,
+    device_type VARCHAR(50) DEFAULT 'unknown', -- mobile, tablet, desktop, tv
+    platform VARCHAR(50), -- iOS, Android, Web
+    push_token TEXT,
+    is_active BOOLEAN DEFAULT true,
+    last_active TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    registered_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    UNIQUE(child_id, device_id)
+);
+
+-- 22. Session Sync Table
+CREATE TABLE IF NOT EXISTS session_sync (
+    child_id UUID PRIMARY KEY REFERENCES children(id) ON DELETE CASCADE,
+    video_id VARCHAR(255),
+    position INTEGER DEFAULT 0, -- in seconds
+    device_id VARCHAR(255), -- ID of device where session started
+    started_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    watch_queue TEXT[] DEFAULT '{}', -- Array of video IDs
+    last_synced_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);

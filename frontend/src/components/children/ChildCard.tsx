@@ -1,17 +1,25 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Edit2, Pause, Play, Clock, Activity, Settings, Youtube } from 'lucide-react';
+import { Edit2, Pause, Play, Clock, Tablet, Activity, Settings, Youtube } from 'lucide-react';
 import clsx from 'clsx';
 
 interface ChildCardProps {
     child: any;
-    onEdit: (childId: string) => void;
+    onEdit: (child: any) => void;
     onViewActivity: (childId: string) => void;
     onManageChannels: (childId: string) => void;
     onTogglePause: (child: any) => void;
+    onManageDevices?: (child: any) => void;
 }
 
-export const ChildCard: React.FC<ChildCardProps> = ({ child, onEdit, onViewActivity, onManageChannels, onTogglePause }) => {
+export const ChildCard: React.FC<ChildCardProps> = ({
+    child,
+    onEdit,
+    onViewActivity,
+    onManageChannels,
+    onTogglePause,
+    onManageDevices
+}) => {
     const isPaused = !child.is_active || (child.paused_until && new Date(child.paused_until) > new Date());
 
     // Mock usage data for now
@@ -42,10 +50,23 @@ export const ChildCard: React.FC<ChildCardProps> = ({ child, onEdit, onViewActiv
                     )}
                 </div>
                 <div className="flex gap-2">
-                    <button onClick={() => onEdit(child)} className="p-2 hover:bg-gray-100 rounded-xl text-gray-400 hover:text-gray-600 transition-colors">
-                        <Edit2 size={18} />
-                    </button>
-                    <button onClick={() => onTogglePause(child)} className={clsx("p-2 rounded-xl transition-colors", isPaused ? "bg-green-50 text-green-600 hover:bg-green-100" : "bg-red-50 text-red-400 hover:bg-red-100")}>
+                    <div className="flex flex-col gap-2">
+                        <button
+                            onClick={() => onEdit(child)}
+                            className="bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold p-2 rounded-xl transition-colors text-sm"
+                            title="Edit Profile"
+                        >
+                            <Edit2 size={16} />
+                        </button>
+                        <button
+                            onClick={() => onManageDevices && onManageDevices(child)}
+                            className="bg-blue-50 hover:bg-blue-100 text-blue-600 font-bold p-2 rounded-xl transition-colors text-sm"
+                            title="Manage Devices"
+                        >
+                            <Tablet size={16} />
+                        </button>
+                    </div>
+                    <button onClick={() => onTogglePause(child)} className={clsx("p-2 rounded-xl transition-colors h-fit", isPaused ? "bg-green-50 text-green-600 hover:bg-green-100" : "bg-red-50 text-red-400 hover:bg-red-100")}>
                         {isPaused ? <Play size={18} /> : <Pause size={18} />}
                     </button>
                 </div>
@@ -75,10 +96,10 @@ export const ChildCard: React.FC<ChildCardProps> = ({ child, onEdit, onViewActiv
 
             <div className="mt-4 flex gap-2">
                 <button
-                    onClick={() => onEdit(child)} // Using onEdit as placeholder for settings for now, or add specific prop
+                    onClick={() => onEdit(child)}
                     className="flex-1 py-2 flex items-center justify-center gap-2 text-sm font-bold text-indigo-500 bg-indigo-50 rounded-xl hover:bg-indigo-100 transition-colors"
                 >
-                    <Settings size={16} /> Regulations
+                    <Settings size={16} /> Rules
                 </button>
                 <button
                     onClick={() => onManageChannels(child.id)}

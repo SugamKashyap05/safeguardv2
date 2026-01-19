@@ -43,7 +43,8 @@ export class SafeSearchService {
 
         // 3. Search YouTube
         // YouTubeService already has safeSearch: 'strict'
-        const results = await youtubeService.searchVideos(cleanQuery, 'all'); // 'all' age level for now
+        // YouTubeService already has safeSearch: 'strict'
+        const results = await youtubeService.searchVideos(cleanQuery, 'all') as any[]; // 'all' age level for now
 
         // 4. Double Check Results (Post-Filter)
         // Check titles/descriptions against blocklist again because YouTube might let some through

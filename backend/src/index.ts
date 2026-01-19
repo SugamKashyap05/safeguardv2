@@ -31,6 +31,12 @@ app.use((req, res, next) => {
 app.use(errorHandler);
 
 // Start Server
-app.listen(env.PORT, () => {
+import { createServer } from 'http';
+import { WebSocketService } from './services/websocket.service';
+
+const httpServer = createServer(app);
+const ioService = new WebSocketService(httpServer);
+
+httpServer.listen(env.PORT, () => {
     console.log(`Server running on port ${env.PORT}`);
 });

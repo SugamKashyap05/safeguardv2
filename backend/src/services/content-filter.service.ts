@@ -96,6 +96,21 @@ export class ContentFilterService {
         return !!data;
     }
 
+    async checkText(text: string, childId: string): Promise<{ allowed: boolean; reason?: string }> {
+        const { data: filters } = await supabaseAdmin
+            .from('content_filters')
+            .select('blocked_keywords')
+            .eq('child_id', childId)
+            .single();
+
+        if (filters && filters.blocked_keywords && filters.blocked_keywords.length > 0) {
+            if (await this.containsBlockedKeywords(text, filters.blocked_keywords)) {
+                return { allowed: false, reason: 'Contains blocked keywords' };
+            }
+        }
+        return { allowed: true };
+    }
+
     /**
      * Keyword Blocking Logic
      */

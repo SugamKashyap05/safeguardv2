@@ -1,7 +1,7 @@
 import { supabaseAdmin } from '../config/supabase';
 import { YouTubeService } from './youtube.service';
-import { AppError } from '../utils/AppError'; // Assuming exists
-import { HTTP_STATUS } from '../utils/httpStatus'; // Assuming exists
+import { AppError } from '../utils/AppError';
+import { HTTP_STATUS } from '../utils/httpStatus';
 
 const youtubeService = new YouTubeService();
 
@@ -24,16 +24,14 @@ export class RecommendationService {
 
         if (history && history.length > 0) {
             // Simple heuristic directly based on last watched titles
-            // Extract common words or just use the last title + "related"
             const lastVideo = history[0];
             query = `${lastVideo.video_title} related`;
         }
 
         // 2. Fetch from YouTube
-        // using existing search method
-        const videos = await youtubeService.searchVideos(query);
+        const videos = await youtubeService.searchVideos(query, 'all') as any[];
 
-        // 3. Simple Transformation (Mapping to Recommendation Schema)
+        // 3. Simple Transformation
         return {
             type: 'personalized',
             items: videos.map((v: any) => ({
@@ -53,7 +51,7 @@ export class RecommendationService {
     async getEducational(childId: string, ageLevel?: string) {
         // ageLevel could optimize the query terms
         const query = 'educational videos for kids science nature';
-        const videos = await youtubeService.searchVideos(query);
+        const videos = await youtubeService.searchVideos(query, ageLevel || 'all') as any[];
 
         return {
             type: 'educational',
@@ -73,7 +71,7 @@ export class RecommendationService {
     async getTrending(childId: string) {
         // Mocking "Trending" with a robust safe query
         const query = 'best kids shows 2025';
-        const videos = await youtubeService.searchVideos(query);
+        const videos = await youtubeService.searchVideos(query, 'all') as any[];
         return {
             type: 'trending',
             items: videos.map((v: any) => ({
@@ -91,7 +89,7 @@ export class RecommendationService {
      */
     async getByCategory(childId: string, category: string) {
         const query = `kids ${category} videos safe`;
-        const videos = await youtubeService.searchVideos(query);
+        const videos = await youtubeService.searchVideos(query, 'all') as any[];
         return {
             type: 'category',
             category,

@@ -6,6 +6,7 @@ import { asyncWrapper } from '../../utils/asyncWrapper';
 import parentRouter from './parent.routes';
 import childRouter from './child.routes';
 import authRouter from './auth.routes';
+import deviceRouter from './device.routes';
 // @ts-ignore
 import youtubeRouter from './youtube.routes';
 // @ts-ignore
@@ -41,6 +42,7 @@ router.use('/parents', parentRouter);
 router.use('/parents/dashboard', dashboardRouter);
 
 router.use('/children', childRouter);
+router.use('/devices', deviceRouter);
 router.use('/youtube', youtubeRouter);
 router.use('/filters', filterRouter);
 router.use('/screentime', screenTimeRouter);

@@ -19,6 +19,7 @@ export const env = cleanEnv(process.env, {
 
     // Security
     SESSION_SECRET: str({ desc: 'Secret for session cookies' }),
+    JWT_SECRET: str({ desc: 'Secret for Child Tokens' }),
 
     // Email (Optional for now but good to have)
     EMAIL_SERVICE: str({ default: 'gmail' }),

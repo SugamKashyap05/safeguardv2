@@ -14,7 +14,7 @@ router.get('/videos/search', async (req, res) => {
         if (!query) {
             return res.status(400).json({ error: 'Query parameter required' });
         }
-        const results = await youtubeService.searchVideos(query);
+        const results = await youtubeService.searchVideos(query, 'all');
         res.json(results);
     } catch (error) {
         res.status(500).json({ error: 'Failed to search videos' });

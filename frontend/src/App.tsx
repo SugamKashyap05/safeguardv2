@@ -11,6 +11,23 @@ import { NotificationCenterPage } from './pages/dashboard/NotificationCenterPage
 // @ts-ignore
 import { ParentActivityPage } from './pages/dashboard/ParentActivityPage'; // Assuming this exists or I will create it/mapped it previously
 
+import { SocketProvider } from './contexts/SocketContext';
+
+// ... (imports)
+
+// Wrapper for Child Dashboard to provide socket
+const ChildDashboardWrapper = () => {
+    const token = localStorage.getItem('childToken') || undefined;
+    return (
+        <SocketProvider token={token} role="child">
+            <ChildDashboardPage />
+        </SocketProvider>
+    );
+};
+
+// ...
+
+
 function App() {
     return (
         <Router>
@@ -21,7 +38,7 @@ function App() {
 
                 {/* Child Routes */}
                 <Route path="/child/login" element={<ChildLoginPage />} />
-                <Route path="/child/dashboard" element={<ChildDashboardPage />} />
+                <Route path="/child/dashboard" element={<ChildDashboardWrapper />} />
 
                 {/* Parent Routes */}
                 <Route path="/parent/dashboard" element={<ParentDashboardPage />} />

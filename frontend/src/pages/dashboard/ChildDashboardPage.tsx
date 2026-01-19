@@ -5,6 +5,7 @@ import { api } from '../../services/api';
 import { ChildTimer } from '../../components/children/ChildTimer';
 import { SafeVideoPlayer } from '../../components/children/SafeVideoPlayer';
 import { useNavigate } from 'react-router-dom';
+import { useSocket } from '../../contexts/SocketContext';
 
 export const ChildDashboardPage = () => {
     const navigate = useNavigate();
@@ -23,6 +24,11 @@ export const ChildDashboardPage = () => {
     const [pauseReason, setPauseReason] = useState<string | null>(null);
 
     const [selectedVideo, setSelectedVideo] = useState<any | null>(null);
+    const [showDeviceSetup, setShowDeviceSetup] = useState(false);
+    const [deviceName, setDeviceName] = useState('');
+
+    const { socket } = useSocket() || {};
+
 
     // Retrieve child from local storage or context
     const childId = localStorage.getItem('activeChildId');
@@ -42,6 +48,58 @@ export const ChildDashboardPage = () => {
         const interval = setInterval(checkStatus, 60000);
         return () => clearInterval(interval);
     }, [childId, navigate]);
+
+    useEffect(() => {
+        const storedDeviceId = localStorage.getItem('safeguard_device_id');
+        if (!storedDeviceId) {
+            setShowDeviceSetup(true);
+        }
+    }, []);
+
+    // Socket Listeners
+    useEffect(() => {
+        if (!socket) return;
+
+        socket.on('playback_paused', (data: any) => {
+            if (data.reason === 'switched_device') {
+                setIsPaused(true);
+                setPauseReason("You started watching on another device.");
+                setSelectedVideo(null); // Close player
+            }
+        });
+
+        return () => {
+            socket.off('playback_paused');
+        };
+    }, [socket]);
+
+    const handleDeviceRegister = async (e: React.FormEvent) => {
+        e.preventDefault();
+        try {
+            // Generate a local ID for this hardware
+            const deviceId = localStorage.getItem('safeguard_device_id') || crypto.randomUUID();
+
+            // Detect platform/type simply
+            const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+            const platform = isMobile ? (navigator.userAgent.includes('Android') ? 'Android' : 'iOS') : 'Web';
+            const type = isMobile ? 'mobile' : 'desktop';
+
+            await api.post(`/devices/${childId}/register`, {
+                deviceId,
+                deviceName: deviceName.trim() || `My ${platform} Device`,
+                deviceType: type,
+                platform
+            });
+
+            localStorage.setItem('safeguard_device_id', deviceId);
+            localStorage.setItem('safeguard_device_name', deviceName.trim());
+            setShowDeviceSetup(false);
+        } catch (err) {
+            console.error("Device registration failed", err);
+            // Optionally allow skip or retry
+        }
+    };
+
 
     const checkStatus = async () => {
         try {
@@ -157,6 +215,45 @@ export const ChildDashboardPage = () => {
                             <div className="animate-pulse text-sm font-bold bg-white/20 py-2 px-4 rounded-full inline-block">
                                 Ask your parent to resume
                             </div>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
+            {/* Device Setup Modal */}
+            <AnimatePresence>
+                {showDeviceSetup && (
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="fixed inset-0 z-[60] bg-black/80 backdrop-blur-md flex items-center justify-center p-4"
+                    >
+                        <motion.div
+                            initial={{ scale: 0.9, y: 20 }}
+                            animate={{ scale: 1, y: 0 }}
+                            className="bg-white rounded-3xl p-8 max-w-md w-full text-center"
+                        >
+                            <h2 className="text-3xl font-black text-gray-800 mb-2">New Device! 📱</h2>
+                            <p className="text-gray-500 font-bold mb-6">What should we call this device?</p>
+
+                            <form onSubmit={handleDeviceRegister}>
+                                <input
+                                    autoFocus
+                                    type="text"
+                                    placeholder="e.g. iPad, Living Room TV"
+                                    className="w-full bg-gray-100 p-4 rounded-2xl font-bold text-gray-800 outline-none focus:ring-4 focus:ring-yellow-200 mb-6 text-center text-lg"
+                                    value={deviceName}
+                                    onChange={(e) => setDeviceName(e.target.value)}
+                                    required
+                                />
+                                <button
+                                    type="submit"
+                                    className="w-full bg-yellow-400 hover:bg-yellow-500 text-yellow-900 font-black py-4 rounded-2xl text-xl transition-transform hover:scale-105 active:scale-95"
+                                >
+                                    Start Watching! 🚀
+                                </button>
+                            </form>
                         </motion.div>
                     </motion.div>
                 )}
