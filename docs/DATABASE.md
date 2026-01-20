@@ -167,6 +167,51 @@ is_active   BOOLEAN DEFAULT true
 created_at  TIMESTAMPTZ
 ```
 
+### approval_requests
+Video/channel approval workflow.
+```sql
+id                UUID PRIMARY KEY
+child_id          UUID REFERENCES children(id)
+request_type      TEXT (video|channel)
+video_id          TEXT
+video_title       TEXT
+video_thumbnail   TEXT
+duration          INTEGER
+channel_id        TEXT NOT NULL
+channel_name      TEXT
+channel_thumbnail TEXT
+status            TEXT (pending|approved|rejected)
+child_message     TEXT
+parent_notes      TEXT
+requested_at      TIMESTAMPTZ
+reviewed_at       TIMESTAMPTZ
+reviewed_by       UUID REFERENCES parents(id)
+```
+
+### approved_videos
+One-time approved videos.
+```sql
+id          UUID PRIMARY KEY
+child_id    UUID REFERENCES children(id)
+video_id    TEXT NOT NULL
+approved_by UUID REFERENCES parents(id)
+approved_at TIMESTAMPTZ
+UNIQUE(child_id, video_id)
+```
+
+### child_notifications
+Notifications for children.
+```sql
+id          UUID PRIMARY KEY
+child_id    UUID REFERENCES children(id)
+type        TEXT NOT NULL
+title       TEXT
+message     TEXT
+data        JSONB
+is_read     BOOLEAN DEFAULT false
+created_at  TIMESTAMPTZ
+```
+
 ## Indexes
 
 ```sql
@@ -175,6 +220,10 @@ CREATE INDEX idx_watch_history_child ON watch_history(child_id);
 CREATE INDEX idx_watch_history_watched_at ON watch_history(watched_at);
 CREATE INDEX idx_notifications_parent ON notifications(parent_id);
 CREATE INDEX idx_playlist_items_playlist ON playlist_items(playlist_id);
+CREATE INDEX idx_approval_requests_child ON approval_requests(child_id);
+CREATE INDEX idx_approval_requests_status ON approval_requests(status);
+CREATE INDEX idx_approved_videos_child ON approved_videos(child_id);
+CREATE INDEX idx_child_notifications_child ON child_notifications(child_id);
 ```
 
 ## Row Level Security

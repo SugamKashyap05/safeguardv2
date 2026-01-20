@@ -3,6 +3,8 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { ChildControlsService, ScreenTimeRules } from '../../services/child-controls.service';
 import { ArrowLeft, Clock, Shield, Moon, Play, Pause, Plus, Save, AlertCircle, CheckCircle, User } from 'lucide-react';
 import clsx from 'clsx';
+import { ChildProfile } from '../../components/children/ChildProfile';
+import { FilterPanel, ContentFilterState } from '../../components/common/FilterPanel';
 
 export const ManageChildPage = () => {
     const { childId } = useParams<{ childId: string }>();
@@ -10,6 +12,7 @@ export const ManageChildPage = () => {
 
     const [child, setChild] = useState<any>(null);
     const [rules, setRules] = useState<ScreenTimeRules | null>(null);
+    const [filters, setFilters] = useState<ContentFilterState | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
     const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
@@ -21,12 +24,14 @@ export const ManageChildPage = () => {
 
     const loadData = async (id: string) => {
         try {
-            const [childData, rulesData] = await Promise.all([
+            const [childData, rulesData, filtersData] = await Promise.all([
                 ChildControlsService.getChild(id),
-                ChildControlsService.getScreenTimeRules(id)
+                ChildControlsService.getScreenTimeRules(id),
+                ChildControlsService.getContentFilters(id)
             ]);
             setChild(childData);
             setRules(rulesData);
+            setFilters(filtersData);
             setIsPaused(childData.paused_until && new Date(childData.paused_until) > new Date());
         } catch (err) {
             console.error('Failed to load data', err);
@@ -42,7 +47,10 @@ export const ManageChildPage = () => {
         setMessage(null);
 
         try {
-            await ChildControlsService.updateScreenTimeRules(childId, rules);
+            await Promise.all([
+                ChildControlsService.updateScreenTimeRules(childId, rules),
+                filters ? ChildControlsService.updateContentFilters(childId, filters) : Promise.resolve()
+            ]);
             setMessage({ type: 'success', text: 'Settings saved successfully!' });
         } catch (err) {
             setMessage({ type: 'error', text: 'Failed to save settings' });
@@ -91,13 +99,7 @@ export const ManageChildPage = () => {
                             <ArrowLeft size={20} />
                         </button>
                         <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-500 to-purple-500 flex items-center justify-center text-white font-bold">
-                                {child?.avatar || child?.name?.charAt(0)}
-                            </div>
-                            <div>
-                                <h1 className="text-xl font-bold text-gray-900">{child?.name || 'Child'}</h1>
-                                <p className="text-sm text-gray-500">Age {child?.age}</p>
-                            </div>
+                            <ChildProfile child={child} size="md" showDetails={true} />
                         </div>
                     </div>
                     <div className="flex gap-3">
@@ -319,71 +321,12 @@ export const ManageChildPage = () => {
                 </section>
 
                 {/* Content Filters Section */}
-                <section className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-                    <div className="flex items-center gap-3 mb-6">
-                        <div className="p-2 bg-red-100 text-red-600 rounded-lg">
-                            <Shield size={20} />
-                        </div>
-                        <div>
-                            <h2 className="text-lg font-bold text-gray-900">Content Filters</h2>
-                            <p className="text-sm text-gray-500">Control what content your child can access</p>
-                        </div>
-                    </div>
-
-                    {/* Age Restriction */}
-                    <div className="mb-6">
-                        <label className="block text-sm font-medium text-gray-700 mb-2">Age Restriction Level</label>
-                        <select
-                            className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-red-200 focus:border-red-400 outline-none"
-                            defaultValue={child?.age <= 5 ? 'preschool' : child?.age <= 8 ? 'kids' : child?.age <= 12 ? 'tweens' : 'teens'}
-                        >
-                            <option value="preschool">Preschool (0-5 years) - Most restrictive</option>
-                            <option value="kids">Kids (6-8 years) - Kid-friendly only</option>
-                            <option value="tweens">Tweens (9-12 years) - Moderate filtering</option>
-                            <option value="teens">Teens (13+ years) - Light filtering</option>
-                        </select>
-                    </div>
-
-                    {/* Content Categories to Block */}
-                    <div className="mb-6">
-                        <label className="block text-sm font-medium text-gray-700 mb-3">Blocked Categories</label>
-                        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                            {[
-                                { id: 'gaming', label: '🎮 Gaming', desc: 'Video game content' },
-                                { id: 'music', label: '🎵 Music Videos', desc: 'Music videos' },
-                                { id: 'challenges', label: '⚠️ Challenges', desc: 'Viral challenges' },
-                                { id: 'unboxing', label: '📦 Unboxing', desc: 'Product unboxing' },
-                                { id: 'asmr', label: '🔊 ASMR', desc: 'ASMR content' },
-                                { id: 'livestream', label: '🔴 Livestreams', desc: 'Live content' }
-                            ].map(cat => (
-                                <label
-                                    key={cat.id}
-                                    className="flex items-start gap-3 p-3 border border-gray-200 rounded-xl cursor-pointer hover:border-red-300 hover:bg-red-50 transition-colors"
-                                >
-                                    <input type="checkbox" className="mt-1 w-4 h-4 text-red-600 rounded" />
-                                    <div>
-                                        <span className="font-medium text-gray-800">{cat.label}</span>
-                                        <p className="text-xs text-gray-500">{cat.desc}</p>
-                                    </div>
-                                </label>
-                            ))}
-                        </div>
-                    </div>
-
-                    {/* Safe Search */}
-                    <div className="flex items-center justify-between p-4 bg-gray-50 rounded-xl">
-                        <div>
-                            <h3 className="font-bold text-gray-800">Safe Search</h3>
-                            <p className="text-sm text-gray-500">Enforce safe search on all queries</p>
-                        </div>
-                        <button
-                            className="w-14 h-8 rounded-full transition-colors relative bg-green-500"
-                            disabled
-                        >
-                            <span className="absolute top-1 right-1 w-6 h-6 bg-white rounded-full shadow" />
-                        </button>
-                    </div>
-                </section>
+                {filters && (
+                    <FilterPanel
+                        filters={filters}
+                        onChange={setFilters}
+                    />
+                )}
 
                 {/* Quick Links */}
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">

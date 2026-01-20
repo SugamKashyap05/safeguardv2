@@ -9,6 +9,7 @@ const router = Router();
 router.use(requireParent);
 
 router.get('/latest', asyncWrapper(ReportController.getLatest));
+router.get('/download', asyncWrapper(ReportController.downloadReport));
 router.get('/weekly/:date', asyncWrapper(ReportController.getByDate));
 
 export default router;

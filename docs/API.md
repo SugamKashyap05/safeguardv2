@@ -348,6 +348,91 @@ Get educational content
 
 ---
 
+## Approval Endpoints
+
+### POST /approvals/request (Child Auth)
+Request video/channel approval
+```json
+{
+  "videoId": "youtube_id",
+  "videoTitle": "string",
+  "videoThumbnail": "url",
+  "channelId": "string",
+  "channelName": "string",
+  "duration": 300,
+  "message": "Please can I watch this?",
+  "requestType": "video"
+}
+```
+
+### GET /approvals/pending
+Get pending approval requests for parent
+
+### GET /approvals/history?status=approved
+Get approval history (filter by status)
+
+### GET /approvals/count
+Get pending request count (for badge)
+
+### POST /approvals/:id/review
+Approve or reject a request
+```json
+{
+  "decision": "approve",
+  "notes": "Optional parent notes"
+}
+```
+
+### POST /approvals/:id/quick-approve-channel
+Approve video AND add entire channel to approved list
+
+### DELETE /approvals/:id
+Dismiss/delete a request
+
+---
+
+## Analytics Endpoints
+
+### GET /analytics/child/:childId?range=30
+Get comprehensive child analytics
+```json
+{
+  "overview": {
+    "totalWatchTime": 420,
+    "videosWatched": 25,
+    "avgSessionLength": 35,
+    "completionRate": 85,
+    "educationalPercent": 60
+  },
+  "trends": {
+    "dailyUsage": [{"date": "2026-01-19", "minutes": 45, "limit": 60}],
+    "peakHours": [{"hour": 16, "minutes": 120}],
+    "dayOfWeekPattern": [{"day": "Mon", "minutes": 45}]
+  },
+  "content": {
+    "topCategories": [{"name": "Education", "value": 200, "color": "#4F46E5"}],
+    "topChannels": [{"id": "...", "name": "...", "thumbnail": "...", "watchTime": 60}],
+    "topVideos": [{"id": "...", "title": "...", "thumbnail": "...", "views": 5}]
+  },
+  "safety": {
+    "blockedAttempts": 3,
+    "approvalRequests": 2,
+    "limitHits": 5
+  },
+  "insights": [
+    {"type": "positive", "icon": "📚", "title": "...", "message": "..."}
+  ]
+}
+```
+
+### GET /analytics/parent/dashboard
+Get family-level analytics overview
+
+### GET /analytics/insights/:childId
+Get AI-generated insights for a child
+
+---
+
 ## Response Format
 
 All responses follow this format:

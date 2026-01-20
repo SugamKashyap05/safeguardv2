@@ -3,7 +3,7 @@
 // Actually, I should just create the page content first.
 import { useEffect, useState } from 'react';
 import { api } from '../../services/api';
-import { Download, Share2, TrendingUp, AlertTriangle, Clock, Video } from 'lucide-react';
+import { Download, Share2, TrendingUp, AlertTriangle, Clock, Video, Loader2 } from 'lucide-react';
 
 const ReportsPage = () => {
     const [report, setReport] = useState<any>(null);
@@ -19,6 +19,29 @@ const ReportsPage = () => {
             setReport(res.data.data);
         } catch (e) {
             console.error(e);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleDownload = async () => {
+        try {
+            setLoading(true);
+            const response = await api.get('/reports/download', {
+                responseType: 'blob'
+            });
+
+            // Create blob link to download
+            const url = window.URL.createObjectURL(new Blob([response.data]));
+            const link = document.createElement('a');
+            link.href = url;
+            link.setAttribute('download', 'Weekly_Report.pdf'); // or dynamic name
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+        } catch (err) {
+            console.error("Download failed", err);
+            alert("Failed to download report.");
         } finally {
             setLoading(false);
         }
@@ -44,8 +67,15 @@ const ReportsPage = () => {
                         <Share2 size={18} />
                         <span>Share</span>
                     </button>
-                    <button className="flex items-center space-x-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors shadow-sm">
-                        <Download size={18} />
+                    <button
+                        onClick={() => {
+                            const token = localStorage.getItem('safeguard_token');
+                            handleDownload();
+                        }}
+                        disabled={loading}
+                        className="flex items-center space-x-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors shadow-sm disabled:opacity-50"
+                    >
+                        {loading ? <Loader2 className="animate-spin" size={18} /> : <Download size={18} />}
                         <span>Download PDF</span>
                     </button>
                 </div>

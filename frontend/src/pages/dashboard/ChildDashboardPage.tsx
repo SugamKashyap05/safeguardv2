@@ -8,6 +8,7 @@ import { useNavigate } from 'react-router-dom';
 import { useSocket } from '../../contexts/SocketContext';
 import { VideoCard } from '../../components/children/VideoCard';
 import { AddToPlaylistModal } from '../../components/playlists/AddToPlaylistModal';
+import { Skeleton } from '../../components/common/Skeleton';
 
 export const ChildDashboardPage = () => {
     const navigate = useNavigate();
@@ -34,7 +35,6 @@ export const ChildDashboardPage = () => {
     const [videoForPlaylist, setVideoForPlaylist] = useState<any>(null);
 
     const { socket } = useSocket() || {};
-
 
     // Retrieve child from local storage or context
     const childId = localStorage.getItem('activeChildId');
@@ -106,7 +106,6 @@ export const ChildDashboardPage = () => {
         }
     };
 
-
     const checkStatus = async () => {
         try {
             const token = localStorage.getItem('safeguard_token');
@@ -135,8 +134,6 @@ export const ChildDashboardPage = () => {
             }
         }
     };
-
-
 
     const loadSuggestions = async () => {
         try {
@@ -279,14 +276,17 @@ export const ChildDashboardPage = () => {
             </AnimatePresence>
 
             {/* Playlist Modal */}
-            {videoForPlaylist && (
-                <AddToPlaylistModal
-                    isOpen={playlistModalOpen}
-                    onClose={() => setPlaylistModalOpen(false)}
-                    video={videoForPlaylist}
-                    childId={childId}
-                />
-            )}
+            <AnimatePresence>
+                {videoForPlaylist && (
+                    <AddToPlaylistModal
+                        isOpen={playlistModalOpen}
+                        onClose={() => setPlaylistModalOpen(false)}
+                        video={videoForPlaylist}
+                        childId={childId}
+                    />
+                )}
+            </AnimatePresence>
+
 
             <AnimatePresence>
                 {selectedVideo && (
@@ -334,6 +334,12 @@ export const ChildDashboardPage = () => {
                 </div>
 
                 <div className="flex items-center gap-4">
+                    <button
+                        onClick={() => navigate('/child/requests')}
+                        className="px-4 py-2 bg-blue-100 text-blue-600 rounded-xl font-bold hover:bg-blue-200 transition-colors"
+                    >
+                        My Requests
+                    </button>
                     <button
                         onClick={() => navigate('/child/playlists')}
                         className="px-4 py-2 bg-pink-100 text-pink-600 rounded-xl font-bold hover:bg-pink-200 transition-colors"
@@ -404,7 +410,13 @@ export const ChildDashboardPage = () => {
                     {loading ? (
                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                             {[...Array(8)].map((_, i) => (
-                                <div key={i} className="aspect-video bg-gray-200 rounded-3xl animate-pulse" />
+                                <div key={i} className="space-y-3">
+                                    <Skeleton variant="rectangular" height={192} className="w-full rounded-xl" />
+                                    <div className="space-y-2">
+                                        <Skeleton variant="text" width="80%" height={24} />
+                                        <Skeleton variant="text" width="60%" height={16} />
+                                    </div>
+                                </div>
                             ))}
                         </div>
                     ) : videos.length > 0 ? (
@@ -456,7 +468,7 @@ export const ChildDashboardPage = () => {
 
 // --- Sub Components ---
 
-const Section = ({ title, videos, onPlay, color, icon, onAddToPlaylist, childId }: any) => {
+function Section({ title, videos, onPlay, color, icon, onAddToPlaylist, childId }: any) {
     if (!videos || videos.length === 0) return null;
     return (
         <div className="max-w-full">
@@ -480,18 +492,20 @@ const Section = ({ title, videos, onPlay, color, icon, onAddToPlaylist, childId 
             </div>
         </div>
     );
-};
+}
 
-const VideoGrid = ({ videos, onPlay, onAddToPlaylist, childId }: any) => (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 px-4">
-        {videos.map((video: any) => (
-            <VideoCard
-                key={video.id?.videoId || video.videoId}
-                video={video}
-                onPlay={onPlay}
-                onAddToPlaylist={onAddToPlaylist}
-                childId={childId}
-            />
-        ))}
-    </div>
-);
+function VideoGrid({ videos, onPlay, onAddToPlaylist, childId }: any) {
+    return (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 px-4">
+            {videos.map((video: any) => (
+                <VideoCard
+                    key={video.id?.videoId || video.videoId}
+                    video={video}
+                    onPlay={onPlay}
+                    onAddToPlaylist={onAddToPlaylist}
+                    childId={childId}
+                />
+            ))}
+        </div>
+    );
+}

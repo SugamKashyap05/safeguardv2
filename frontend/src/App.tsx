@@ -19,6 +19,8 @@ import { ApprovalCenterPage } from './pages/dashboard/ApprovalCenterPage';
 import { ChildAnalyticsPage } from './pages/dashboard/ChildAnalyticsPage';
 import { PlaylistsPage } from './pages/child/PlaylistsPage';
 import { PlaylistDetailPage } from './pages/child/PlaylistDetailPage';
+import { MyRequestsPage } from './pages/child/MyRequestsPage';
+import { ErrorBoundary } from './components/common/ErrorBoundary';
 
 import { SocketProvider } from './contexts/SocketContext';
 
@@ -40,39 +42,41 @@ const ChildDashboardWrapper = () => {
 function App() {
     return (
         <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-            <Routes>
-                {/* Public / Landing */}
-                <Route path="/" element={<Navigate to="/login" replace />} />
-                <Route path="/signup" element={<SignupPage />} />
-                <Route path="/login" element={<ParentLoginPage />} />
+            <ErrorBoundary>
+                <Routes>
+                    {/* Public / Landing */}
+                    <Route path="/" element={<Navigate to="/login" replace />} />
+                    <Route path="/signup" element={<SignupPage />} />
+                    <Route path="/login" element={<ParentLoginPage />} />
 
-                {/* Child Routes */}
-                <Route path="/child/login" element={<ChildLoginPage />} />
-                <Route path="/child/login" element={<ChildLoginPage />} />
-                <Route path="/child/dashboard" element={<ChildDashboardWrapper />} />
-                <Route path="/child/playlists" element={<PlaylistsPage />} />
-                <Route path="/child/playlists/:id" element={<PlaylistDetailPage />} />
+                    {/* Child Routes */}
+                    <Route path="/child/login" element={<ChildLoginPage />} />
+                    <Route path="/child/dashboard" element={<ChildDashboardWrapper />} />
+                    <Route path="/child/playlists" element={<PlaylistsPage />} />
+                    <Route path="/child/playlists/:id" element={<PlaylistDetailPage />} />
+                    <Route path="/child/requests" element={<MyRequestsPage />} />
 
-                {/* Parent Routes */}
-                <Route path="/parent/dashboard" element={<ParentDashboardPage />} />
-                <Route path="/parent/children" element={<ChildManagementPage />} />
-                <Route path="/parent/child/:childId/playlists" element={<PlaylistsPage />} />
-                <Route path="/parent/child/:childId/playlists/:id" element={<PlaylistDetailPage />} />
-                <Route path="/parent/child/:childId/manage" element={<ManageChildPage />} />
-                <Route path="/parent/channels/:childId" element={<ChannelManagementPage />} />
-                <Route path="/parent/notifications" element={<NotificationCenterPage />} />
-                <Route path="/parent/settings" element={<ParentSettingsPage />} />
-                <Route path="/parent/reports" element={<ReportsPage />} />
-                <Route path="/parent/activity/:childId" element={<ParentActivityPage />} />
-                <Route path="/parent/approvals" element={<ApprovalCenterPage />} />
-                <Route path="/parent/child/:childId/analytics" element={<ChildAnalyticsPage />} />
+                    {/* Parent Routes */}
+                    <Route path="/parent/dashboard" element={<ParentDashboardPage />} />
+                    <Route path="/parent/children" element={<ChildManagementPage />} />
+                    <Route path="/parent/child/:childId/playlists" element={<PlaylistsPage />} />
+                    <Route path="/parent/child/:childId/playlists/:id" element={<PlaylistDetailPage />} />
+                    <Route path="/parent/child/:childId/manage" element={<ManageChildPage />} />
+                    <Route path="/parent/channels/:childId" element={<ChannelManagementPage />} />
+                    <Route path="/parent/notifications" element={<NotificationCenterPage />} />
+                    <Route path="/parent/settings" element={<ParentSettingsPage />} />
+                    <Route path="/parent/reports" element={<ReportsPage />} />
+                    <Route path="/parent/activity/:childId" element={<ParentActivityPage />} />
+                    <Route path="/parent/approvals" element={<ApprovalCenterPage />} />
+                    <Route path="/parent/child/:childId/analytics" element={<ChildAnalyticsPage />} />
 
-                {/* Debug */}
-                <Route path="/test-connection" element={<ApiTestPage />} />
+                    {/* Debug */}
+                    <Route path="/test-connection" element={<ApiTestPage />} />
 
-                {/* Fallback */}
-                <Route path="*" element={<div className="p-8 text-center text-gray-500">404: Page Not Found</div>} />
-            </Routes>
+                    {/* Fallback */}
+                    <Route path="*" element={<div className="p-8 text-center text-gray-500">404: Page Not Found</div>} />
+                </Routes>
+            </ErrorBoundary>
         </Router>
     );
 }

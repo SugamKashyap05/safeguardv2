@@ -4,6 +4,7 @@ import { Playlist } from '../../types/playlist';
 import { PlaylistService } from '../../services/playlist.service';
 import { PlaylistCard } from '../../components/playlists/PlaylistCard';
 import { Plus, ListMusic } from 'lucide-react';
+import { EmptyState } from '../../components/common/EmptyState';
 // import { CreatePlaylistModal } from '../../components/playlists/CreatePlaylistModal'; // Implement later if needed
 
 export const PlaylistsPage = () => {
@@ -87,12 +88,17 @@ export const PlaylistsPage = () => {
                         </div>
 
                         {customs.length === 0 ? (
-                            <div className="text-center py-12 bg-gray-50 rounded-3xl border-2 border-dashed border-gray-200">
-                                <p className="text-gray-500 font-medium">No custom playlists yet.</p>
-                                <button onClick={handleCreate} className="text-yellow-600 font-bold hover:underline mt-2">
-                                    Create one now?
-                                </button>
-                            </div>
+                            <EmptyState
+                                icon={ListMusic}
+                                title="No custom playlists yet"
+                                description="Create your own collection of favorite videos!"
+                                action={
+                                    <button onClick={handleCreate} className="text-yellow-600 font-bold hover:underline mt-2">
+                                        Create one now?
+                                    </button>
+                                }
+                                className="bg-gray-50 rounded-3xl border-2 border-dashed border-gray-200"
+                            />
                         ) : (
                             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
                                 {customs.map(pl => (

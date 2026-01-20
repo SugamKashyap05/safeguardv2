@@ -29,8 +29,11 @@ export const ApprovalCenterPage = () => {
     const [pendingCount, setPendingCount] = useState(0);
     const [loading, setLoading] = useState(true);
     const [actionLoading, setActionLoading] = useState<string | null>(null);
+    const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+    const [bulkProcessing, setBulkProcessing] = useState(false);
 
     useEffect(() => {
+        setSelectedIds(new Set());
         fetchRequests();
     }, [activeTab]);
 
@@ -101,6 +104,38 @@ export const ApprovalCenterPage = () => {
         }
     };
 
+    const toggleSelection = (id: string) => {
+        const newSet = new Set(selectedIds);
+        if (newSet.has(id)) newSet.delete(id);
+        else newSet.add(id);
+        setSelectedIds(newSet);
+    };
+
+    const handleSelectAll = () => {
+        if (selectedIds.size === requests.length) {
+            setSelectedIds(new Set());
+        } else {
+            setSelectedIds(new Set(requests.map(r => r.id)));
+        }
+    };
+
+    const handleBulkAction = async (decision: 'approve' | 'reject') => {
+        if (!confirm(`${decision === 'approve' ? 'Approve' : 'Reject'} ${selectedIds.size} requests?`)) return;
+        setBulkProcessing(true);
+        try {
+            await Promise.all([...selectedIds].map(id =>
+                api.post(`/approvals/${id}/review`, { decision })
+            ));
+            setSelectedIds(new Set());
+            fetchRequests();
+        } catch (err) {
+            console.error('Bulk action failed', err);
+            alert('Some requests failed to process.');
+        } finally {
+            setBulkProcessing(false);
+        }
+    };
+
     const tabs = [
         { id: 'pending', label: 'Pending', icon: Clock, count: pendingCount },
         { id: 'approved', label: 'Approved', icon: CheckCircle },
@@ -153,6 +188,44 @@ export const ApprovalCenterPage = () => {
                     ))}
                 </div>
 
+                {/* Bulk Actions Header (Only for Pending) */}
+                {activeTab === 'pending' && requests.length > 0 && (
+                    <div className="flex items-center justify-between bg-white p-4 rounded-2xl shadow-sm border border-gray-100">
+                        <div className="flex items-center gap-3">
+                            <input
+                                type="checkbox"
+                                checked={selectedIds.size === requests.length && requests.length > 0}
+                                onChange={handleSelectAll}
+                                className="w-5 h-5 text-indigo-600 rounded focus:ring-indigo-500 border-gray-300"
+                            />
+                            <span className="text-sm font-medium text-gray-700">
+                                {selectedIds.size > 0 ? `${selectedIds.size} Selected` : 'Select All'}
+                            </span>
+                        </div>
+
+                        {selectedIds.size > 0 && (
+                            <div className="flex gap-2">
+                                <button
+                                    onClick={() => handleBulkAction('reject')}
+                                    disabled={bulkProcessing}
+                                    className="px-4 py-2 bg-red-50 text-red-600 rounded-xl font-bold hover:bg-red-100 transition-colors flex items-center gap-2"
+                                >
+                                    {bulkProcessing ? <Loader2 className="animate-spin" size={16} /> : <XCircle size={16} />}
+                                    Reject ({selectedIds.size})
+                                </button>
+                                <button
+                                    onClick={() => handleBulkAction('approve')}
+                                    disabled={bulkProcessing}
+                                    className="px-4 py-2 bg-green-600 text-white rounded-xl font-bold hover:bg-green-700 transition-colors flex items-center gap-2 shadow-lg shadow-green-200"
+                                >
+                                    {bulkProcessing ? <Loader2 className="animate-spin" size={16} /> : <CheckCircle size={16} />}
+                                    Approve ({selectedIds.size})
+                                </button>
+                            </div>
+                        )}
+                    </div>
+                )}
+
                 {/* Request List */}
                 {loading ? (
                     <div className="flex items-center justify-center py-16">
@@ -168,16 +241,29 @@ export const ApprovalCenterPage = () => {
                 ) : (
                     <div className="space-y-4">
                         {requests.map(request => (
-                            <ApprovalCard
-                                key={request.id}
-                                request={request}
-                                onApprove={() => handleApprove(request.id)}
-                                onReject={() => handleReject(request.id)}
-                                onQuickApproveChannel={() => handleQuickApproveChannel(request.id)}
-                                onDismiss={() => handleDismiss(request.id)}
-                                isLoading={actionLoading === request.id}
-                                showActions={activeTab === 'pending'}
-                            />
+                            <div key={request.id} className="flex items-start gap-4">
+                                {activeTab === 'pending' && (
+                                    <div className="pt-8 pl-1">
+                                        <input
+                                            type="checkbox"
+                                            checked={selectedIds.has(request.id)}
+                                            onChange={() => toggleSelection(request.id)}
+                                            className="w-5 h-5 text-indigo-600 rounded focus:ring-indigo-500 border-gray-300"
+                                        />
+                                    </div>
+                                )}
+                                <div className="flex-1 min-w-0">
+                                    <ApprovalCard
+                                        request={request}
+                                        onApprove={() => handleApprove(request.id)}
+                                        onReject={() => handleReject(request.id)}
+                                        onQuickApproveChannel={() => handleQuickApproveChannel(request.id)}
+                                        onDismiss={() => handleDismiss(request.id)}
+                                        isLoading={actionLoading === request.id || (bulkProcessing && selectedIds.has(request.id))}
+                                        showActions={activeTab === 'pending'}
+                                    />
+                                </div>
+                            </div>
                         ))}
                     </div>
                 )}

@@ -39,4 +39,18 @@ export class ReportController {
         const report = await service.getWeeklyReport(req.user!.id, date);
         return ApiResponse.success(res, report);
     }
+
+    static async downloadReport(req: Request, res: Response) {
+        const { date } = req.query;
+        // @ts-ignore
+        const report = await service.getWeeklyReport(req.user!.id, date as string || new Date().toISOString().split('T')[0]);
+        const pdfBuffer = await service.generatePDF(report);
+
+        res.set({
+            'Content-Type': 'application/pdf',
+            'Content-Disposition': `attachment; filename=safeguard-report-${report.week_start_date}.pdf`,
+            'Content-Length': pdfBuffer.length
+        });
+        res.end(pdfBuffer);
+    }
 }
