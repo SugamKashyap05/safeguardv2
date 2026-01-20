@@ -15,6 +15,8 @@ import { ParentActivityPage } from './pages/dashboard/ParentActivityPage';
 import { ParentSettingsPage } from './pages/dashboard/ParentSettingsPage';
 import { ManageChildPage } from './pages/dashboard/ManageChildPage';
 import ReportsPage from './pages/dashboard/ReportsPage';
+import { ApprovalCenterPage } from './pages/dashboard/ApprovalCenterPage';
+import { ChildAnalyticsPage } from './pages/dashboard/ChildAnalyticsPage';
 import { PlaylistsPage } from './pages/child/PlaylistsPage';
 import { PlaylistDetailPage } from './pages/child/PlaylistDetailPage';
 
@@ -62,6 +64,8 @@ function App() {
                 <Route path="/parent/settings" element={<ParentSettingsPage />} />
                 <Route path="/parent/reports" element={<ReportsPage />} />
                 <Route path="/parent/activity/:childId" element={<ParentActivityPage />} />
+                <Route path="/parent/approvals" element={<ApprovalCenterPage />} />
+                <Route path="/parent/child/:childId/analytics" element={<ChildAnalyticsPage />} />
 
                 {/* Debug */}
                 <Route path="/test-connection" element={<ApiTestPage />} />

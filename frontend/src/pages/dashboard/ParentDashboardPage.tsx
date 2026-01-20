@@ -6,7 +6,7 @@ import { ActivityFeed } from '../../components/dashboard/ActivityFeed';
 import { NotificationBell } from '../../components/dashboard/NotificationBell';
 // @ts-ignore
 import { ChildManagementPage } from './ChildManagementPage'; // We can reuse grid or just link to it
-import { PlusCircle, Shield, Settings, FileText, AlertOctagon } from 'lucide-react';
+import { PlusCircle, Shield, Settings, FileText, AlertOctagon, Inbox } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 export const ParentDashboardPage = () => {
@@ -15,10 +15,21 @@ export const ParentDashboardPage = () => {
     const [activity, setActivity] = useState<any>(null);
     const [loading, setLoading] = useState(true);
     const [pausingAll, setPausingAll] = useState(false);
+    const [approvalCount, setApprovalCount] = useState(0);
 
     useEffect(() => {
         fetchDashboardData();
+        fetchApprovalCount();
     }, []);
+
+    const fetchApprovalCount = async () => {
+        try {
+            const res = await api.get('/approvals/count');
+            setApprovalCount(res.data.data.count || 0);
+        } catch (err) {
+            console.error(err);
+        }
+    };
 
     const fetchDashboardData = async () => {
         try {
@@ -29,28 +40,27 @@ export const ParentDashboardPage = () => {
             setStats(statsRes.data.data);
             setActivity(activityRes.data.data);
         } catch (err) {
-            console.error('Failed to load dashboard', err);
+            console.error(err);
         } finally {
             setLoading(false);
         }
     };
 
     const handlePauseAll = async () => {
-        if (!confirm('Pause ALL children immediately? They will not be able to watch any content.')) return;
         setPausingAll(true);
         try {
             await api.post('/emergency/panic-pause');
-            alert('All children have been paused!');
-            fetchDashboardData();
+            alert('All children paused!');
         } catch (err) {
-            console.error('Failed to pause all', err);
-            alert('Failed to pause all children');
+            console.error(err);
         } finally {
             setPausingAll(false);
         }
     };
 
-    if (loading) return <div className="p-8 text-center">Loading Dashboard...</div>;
+    if (loading) {
+        return <div className="min-h-screen flex items-center justify-center"><div className="animate-spin w-12 h-12 border-4 border-indigo-600 border-t-transparent rounded-full"></div></div>;
+    }
 
     return (
         <div className="p-8 max-w-7xl mx-auto space-y-8">
@@ -62,6 +72,18 @@ export const ParentDashboardPage = () => {
                 </div>
                 <div className="flex gap-3">
                     <NotificationBell />
+                    <button
+                        onClick={() => navigate('/parent/approvals')}
+                        className="relative flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-xl text-sm font-medium text-gray-700 hover:bg-gray-50"
+                    >
+                        <Inbox size={18} />
+                        Approvals
+                        {approvalCount > 0 && (
+                            <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold w-5 h-5 flex items-center justify-center rounded-full">
+                                {approvalCount > 9 ? '9+' : approvalCount}
+                            </span>
+                        )}
+                    </button>
                     <button
                         onClick={handlePauseAll}
                         disabled={pausingAll}

@@ -30,6 +30,8 @@ import reportRouter from './report.routes';
 // @ts-ignore
 import emergencyRouter from './emergency.routes';
 import playlistRouter from './playlist.routes';
+import approvalRouter from './approval.routes';
+import analyticsRouter from './analytics.routes';
 
 const router = Router();
 
@@ -55,5 +57,7 @@ router.use('/search', searchRouter);
 router.use('/reports', reportRouter);
 router.use('/emergency', emergencyRouter);
 router.use('/playlists', playlistRouter);
+router.use('/approvals', approvalRouter);
+router.use('/analytics', analyticsRouter);
 
 export default router;
