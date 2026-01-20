@@ -22,7 +22,7 @@ export class ChannelService {
             .from('approved_channels')
             .select('*')
             .eq('child_id', childId)
-            .order('created_at', { ascending: false });
+            .order('approved_at', { ascending: false });
 
         if (error) throw error;
         return data;

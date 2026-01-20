@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useForm } from 'react-hook-form';
+import { useForm, SubmitHandler } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import clsx from 'clsx';
@@ -35,7 +35,7 @@ export const ChildProfileStep = ({ onNext }: { onNext: (data: any) => void }) =>
 
     const level = getLevel(age || 5);
 
-    const onSubmit = async (data: FormData) => {
+    const onSubmit: SubmitHandler<FormData> = async (data) => {
         try {
             // Call API to create child
             await api.post('/children', {

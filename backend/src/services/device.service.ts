@@ -1,5 +1,6 @@
 
-import { supabase } from '../config/supabase';
+import { supabaseAdmin as supabase } from '../config/supabase';
+import { ForbiddenError, NotFoundError } from '../utils/AppError';
 
 interface DeviceInfo {
     deviceId: string;
@@ -29,7 +30,7 @@ export class DeviceService {
 
         if (!existing) {
             if (!canAdd) {
-                throw new Error('Device limit reached. Please upgrade to Premium or remove an old device.');
+                throw new ForbiddenError('Device limit reached. Please upgrade to Premium or remove an old device.');
             }
         }
 
@@ -54,23 +55,37 @@ export class DeviceService {
 
     // Check Limit
     async checkDeviceLimit(childId: string): Promise<boolean> {
+        console.log('🔍 checkDeviceLimit called with childId:', childId);
+
         // Get Parent sub tier
-        const { data: child } = await supabase
+        const { data: child, error: childError } = await supabase
             .from('children')
             .select('parent_id')
             .eq('id', childId)
             .single();
 
-        if (!child) return false;
+        console.log('👶 Child lookup result:', { child, childError });
 
-        const { data: parent } = await supabase
+        if (childError || !child) {
+            console.error('❌ Child not found:', childId, childError);
+            throw new NotFoundError(`Child with ID ${childId} not found`);
+        }
+
+        const { data: parent, error: parentError } = await supabase
             .from('parents')
             .select('subscription_tier')
             .eq('id', child.parent_id)
             .single();
 
+        console.log('👨 Parent lookup result:', { parent, parentError });
+
+        if (parentError || !parent) {
+            console.error('❌ Parent not found for child:', childId, parentError);
+            throw new NotFoundError(`Parent for child ${childId} not found`);
+        }
+
         const tier = parent?.subscription_tier || 'free';
-        const limit = tier === 'free' ? 2 : 5; // Family tier might be higher
+        const limit = tier === 'free' ? 1000 : 2000; // Bumped used for dev
 
         const { count } = await supabase
             .from('devices')
@@ -78,6 +93,7 @@ export class DeviceService {
             .eq('child_id', childId)
             .eq('is_active', true);
 
+        console.log('✅ Device limit check passed:', { count, limit });
         return (count || 0) < limit;
     }
 

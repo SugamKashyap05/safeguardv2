@@ -10,6 +10,7 @@ const childAuthService = new ChildAuthService();
 export const requireParent = async (req: Request, res: Response, next: NextFunction) => {
     try {
         const authHeader = req.headers.authorization;
+        console.log('Middleware Auth Header:', authHeader);
         if (!authHeader?.startsWith('Bearer ')) {
             return ApiResponse.error(res, 'Authorization token missing', HTTP_STATUS.UNAUTHORIZED);
         }
@@ -36,6 +37,7 @@ export const requireParent = async (req: Request, res: Response, next: NextFunct
 export const requireChild = async (req: Request, res: Response, next: NextFunction) => {
     try {
         const authHeader = req.headers.authorization;
+        console.log('Child Auth Header:', authHeader);
         if (!authHeader?.startsWith('Bearer ')) {
             return ApiResponse.error(res, 'Child Session token missing', HTTP_STATUS.UNAUTHORIZED);
         }
@@ -56,6 +58,7 @@ export const requireChild = async (req: Request, res: Response, next: NextFuncti
 
         next();
     } catch (error: any) {
+        console.error('Child Auth Failed:', error.message);
         return ApiResponse.error(res, 'Child Auth failed: ' + error.message, HTTP_STATUS.UNAUTHORIZED);
     }
 };

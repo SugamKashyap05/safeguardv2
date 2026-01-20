@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { OnboardingLayout } from '../../components/layouts/OnboardingLayout';
 import { AccountStep } from './steps/AccountStep';
 import { FamilyStep } from './steps/FamilyStep';
@@ -6,6 +7,7 @@ import { ChildProfileStep } from './steps/ChildProfileStep';
 import { TutorialStep } from './steps/TutorialStep';
 
 export const SignupWizard = () => {
+    const navigate = useNavigate();
     const [step, setStep] = useState(1);
     const [formData, setFormData] = useState({
         // Auth
@@ -45,7 +47,7 @@ export const SignupWizard = () => {
             {step === 1 && <AccountStep onNext={(data: any) => { updateData(data); nextStep(); }} />}
             {step === 2 && <FamilyStep onNext={(data: any) => { updateData(data); nextStep(); }} />}
             {step === 3 && <ChildProfileStep onNext={(data: any) => { updateData(data); nextStep(); }} />}
-            {step === 4 && <TutorialStep onFinish={() => alert('Done! Redirecting...')} />}
+            {step === 4 && <TutorialStep onFinish={() => navigate('/parent/dashboard')} />}
         </OnboardingLayout>
     );
 };

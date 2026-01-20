@@ -28,23 +28,32 @@ export const AccountStep = ({ onNext }: { onNext: (data: any) => void }) => {
     const onSubmit = async (data: FormData) => {
         try {
             // Call API to create account
-            await AuthService.signup({
+            const signupResponse = await AuthService.signup({
                 email: data.email,
                 password: data.password,
                 name: data.name
             });
 
-            // Auto-login (usually signup returns session, but if not we login)
-            // Assuming signup response handled or we just proceed to next step to setup profile
-            // For this flow, we'll assume we can proceed and the wizard context will handle the 'token' later or we login now.
-            // Let's just pass data up for now or perform login if needed.
-            // Actually, let's login immediately to get the token for the next steps (creating child etc)
+            // Check if we got a session directly from signup
+            // (happens when email confirmation is disabled in Supabase)
+            if (signupResponse.data?.session) {
+                localStorage.setItem('safeguard_token', signupResponse.data.session.access_token);
+                onNext({ name: data.name, email: data.email });
+                return;
+            }
 
-            await AuthService.login({ email: data.email, password: data.password });
-
-            onNext({ name: data.name, email: data.email });
-        } catch (err) {
-            alert('Signup failed. Please try again.'); // Replace with better UI
+            // If no session, try login (user might already exist and be confirmed)
+            try {
+                await AuthService.login({ email: data.email, password: data.password });
+                onNext({ name: data.name, email: data.email });
+            } catch (loginErr) {
+                // Login failed - likely email confirmation required
+                alert('Account created! Please check your email to confirm your account, then log in.');
+                // Could redirect to login page instead
+            }
+        } catch (err: any) {
+            const message = err.response?.data?.message || 'Signup failed. Please try again.';
+            alert(message);
             console.error(err);
         }
     };

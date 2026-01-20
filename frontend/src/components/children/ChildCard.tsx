@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Edit2, Pause, Play, Clock, Tablet, Activity, Settings, Youtube } from 'lucide-react';
+import { Edit2, Pause, Play, Clock, Tablet, Activity, Settings, Youtube, ListMusic } from 'lucide-react';
 import clsx from 'clsx';
 
 interface ChildCardProps {
@@ -10,6 +10,7 @@ interface ChildCardProps {
     onManageChannels: (childId: string) => void;
     onTogglePause: (child: any) => void;
     onManageDevices?: (child: any) => void;
+    onManagePlaylists?: (child: any) => void;
 }
 
 export const ChildCard: React.FC<ChildCardProps> = ({
@@ -18,7 +19,8 @@ export const ChildCard: React.FC<ChildCardProps> = ({
     onViewActivity,
     onManageChannels,
     onTogglePause,
-    onManageDevices
+    onManageDevices,
+    onManagePlaylists
 }) => {
     const isPaused = !child.is_active || (child.paused_until && new Date(child.paused_until) > new Date());
 
@@ -112,6 +114,15 @@ export const ChildCard: React.FC<ChildCardProps> = ({
                     className="flex-1 py-2 flex items-center justify-center gap-2 text-sm font-bold text-gray-400 bg-gray-50 rounded-xl hover:bg-yellow-50 hover:text-yellow-700 transition-colors"
                 >
                     <Activity size={16} /> Activity
+                </button>
+            </div>
+
+            <div className="mt-2">
+                <button
+                    onClick={() => onManagePlaylists && onManagePlaylists(child)}
+                    className="w-full py-2 flex items-center justify-center gap-2 text-sm font-bold text-pink-500 bg-pink-50 rounded-xl hover:bg-pink-100 transition-colors"
+                >
+                    <ListMusic size={16} /> Manage Playlists
                 </button>
             </div>
         </motion.div>

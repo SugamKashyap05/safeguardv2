@@ -191,4 +191,19 @@ export class ContentFilterService {
             approved_by: approverId
         }, { onConflict: 'child_id,channel_id' });
     }
+
+    async blockChannel(childId: string, channelId: string, reason?: string) {
+        // Import here to avoid circular dependency
+        const { PlaylistService } = await import('./playlist.service');
+
+        // 1. Add to blocked_content table
+        await supabaseAdmin.from('blocked_content').insert({
+            child_id: childId,
+            channel_id: channelId,
+            reason: reason || 'Blocked by parent'
+        });
+
+        // 2. Remove videos from this channel from all playlists
+        await PlaylistService.removeVideosByChannel(childId, channelId);
+    }
 }

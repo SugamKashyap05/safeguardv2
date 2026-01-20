@@ -38,4 +38,14 @@ export class WatchController {
         const stats = await service.getStats(childId);
         return ApiResponse.success(res, stats);
     }
+
+    static async getMyHistory(req: Request, res: Response) {
+        // @ts-ignore
+        const childId = req.child.id;
+        const page = parseInt(req.query.page as string) || 1;
+        const limit = parseInt(req.query.limit as string) || 20;
+
+        const result = await service.getHistory(childId, page, limit);
+        return ApiResponse.success(res, result);
+    }
 }

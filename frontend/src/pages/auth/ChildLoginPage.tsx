@@ -48,8 +48,10 @@ export const ChildLoginPage = () => {
 
             if (res.data.success) {
                 // Login Success
+                console.log('Login Response:', res.data);
                 localStorage.setItem('activeChildId', selectedChild.id);
                 localStorage.setItem('activeChildName', selectedChild.name);
+                localStorage.setItem('safeguard_token', res.data.data.token);
                 // navigate to dashboard
                 window.location.href = '/child/dashboard'; // Using href to ensure clean slate or navigate if using router hook
             }

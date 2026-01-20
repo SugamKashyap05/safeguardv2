@@ -13,6 +13,13 @@ export class ChannelController {
         return ApiResponse.success(res, result);
     }
 
+    static async getMyApproved(req: Request, res: Response) {
+        // @ts-ignore
+        const childId = req.child.id;
+        const result = await service.getApprovedChannels(childId);
+        return ApiResponse.success(res, result);
+    }
+
     static async getPending(req: Request, res: Response) {
         const { childId } = req.params;
         const result = await service.getPendingRequests(childId);

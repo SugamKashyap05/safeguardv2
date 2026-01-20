@@ -559,3 +559,68 @@ CREATE TABLE IF NOT EXISTS session_sync (
     watch_queue TEXT[] DEFAULT '{}', -- Array of video IDs
     last_synced_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
+
+-- 23. Playlists Table
+CREATE TABLE IF NOT EXISTS public.playlists (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  child_id UUID NOT NULL REFERENCES public.children(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  description TEXT,
+  type TEXT NOT NULL CHECK (type IN ('favorites', 'watch_later', 'custom')),
+  is_default BOOLEAN DEFAULT false,
+  thumbnail TEXT,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_playlists_child_id ON public.playlists(child_id);
+
+ALTER TABLE public.playlists ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY playlists_child_policy ON public.playlists
+  FOR ALL
+  TO authenticated
+  USING (
+    child_id IN (
+      SELECT id FROM public.children WHERE parent_id = (SELECT auth.uid())
+    )
+  )
+  WITH CHECK (
+    child_id IN (
+      SELECT id FROM public.children WHERE parent_id = (SELECT auth.uid())
+    )
+  );
+
+-- 24. Playlist Items Table
+CREATE TABLE IF NOT EXISTS public.playlist_items (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  playlist_id UUID NOT NULL REFERENCES public.playlists(id) ON DELETE CASCADE,
+  video_id TEXT NOT NULL,
+  position INTEGER NOT NULL,
+  added_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  video_metadata JSONB DEFAULT '{}'::jsonb,
+  UNIQUE(playlist_id, video_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_playlist_items_playlist_id ON public.playlist_items(playlist_id);
+
+ALTER TABLE public.playlist_items ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY playlist_items_policy ON public.playlist_items
+  FOR ALL
+  TO authenticated
+  USING (
+    playlist_id IN (
+      SELECT id FROM public.playlists WHERE child_id IN (
+        SELECT id FROM public.children WHERE parent_id = (SELECT auth.uid())
+      )
+    )
+  )
+  WITH CHECK (
+    playlist_items.playlist_id IN (
+      SELECT id FROM public.playlists WHERE child_id IN (
+        SELECT id FROM public.children WHERE parent_id = (SELECT auth.uid())
+      )
+    )
+  );
+

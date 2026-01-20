@@ -2,6 +2,7 @@ import { supabaseAdmin } from '../config/supabase';
 import bcrypt from 'bcryptjs';
 import { Child } from '../models/types';
 import { validatePin } from '../utils/validators';
+import { PlaylistService } from './playlist.service';
 
 export class ChildService {
     /**
@@ -59,6 +60,9 @@ export class ChildService {
                 daily_limit_minutes: childData.daily_screen_time_limit
             });
         }
+
+        // Create Default Playlists
+        await PlaylistService.createDefaultPlaylists(child.id);
 
         return child as Child;
     }

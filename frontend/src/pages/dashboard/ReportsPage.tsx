@@ -1,10 +1,9 @@
 
 // I'll add a link/button to the Parent Dashboard first to access reports
 // Actually, I should just create the page content first.
-import React, { useEffect, useState } from 'react';
-// @ts-ignore
-import api from '../../services/api';
-import { Download, Share2, TrendingUp, AlertTriangle, CheckCircle, Clock, Video } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { api } from '../../services/api';
+import { Download, Share2, TrendingUp, AlertTriangle, Clock, Video } from 'lucide-react';
 
 const ReportsPage = () => {
     const [report, setReport] = useState<any>(null);
@@ -127,8 +126,8 @@ const ChildReportCard = ({ data }: any) => {
                         {data.insights.length === 0 && <p className="text-gray-400 italic">No specific highlights this week.</p>}
                         {data.insights.map((insight: any, i: number) => (
                             <div key={i} className={`flex items-start space-x-3 p-3 rounded-xl ${insight.type === 'positive' ? 'bg-green-50 text-green-800' :
-                                    insight.type === 'alert' ? 'bg-red-50 text-red-800' :
-                                        'bg-blue-50 text-blue-800'
+                                insight.type === 'alert' ? 'bg-red-50 text-red-800' :
+                                    'bg-blue-50 text-blue-800'
                                 }`}>
                                 <span className="text-xl">{insight.icon}</span>
                                 <span className="text-sm font-medium">{insight.message}</span>

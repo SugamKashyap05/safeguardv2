@@ -1,11 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, LogOut, Sparkles, TrendingUp, GraduationCap, X, Play } from 'lucide-react';
+import { Search, LogOut, Sparkles, TrendingUp, GraduationCap } from 'lucide-react';
 import { api } from '../../services/api';
 import { ChildTimer } from '../../components/children/ChildTimer';
 import { SafeVideoPlayer } from '../../components/children/SafeVideoPlayer';
 import { useNavigate } from 'react-router-dom';
 import { useSocket } from '../../contexts/SocketContext';
+import { VideoCard } from '../../components/children/VideoCard';
+import { AddToPlaylistModal } from '../../components/playlists/AddToPlaylistModal';
 
 export const ChildDashboardPage = () => {
     const navigate = useNavigate();
@@ -26,6 +28,10 @@ export const ChildDashboardPage = () => {
     const [selectedVideo, setSelectedVideo] = useState<any | null>(null);
     const [showDeviceSetup, setShowDeviceSetup] = useState(false);
     const [deviceName, setDeviceName] = useState('');
+
+    // Playlist Modal State
+    const [playlistModalOpen, setPlaylistModalOpen] = useState(false);
+    const [videoForPlaylist, setVideoForPlaylist] = useState<any>(null);
 
     const { socket } = useSocket() || {};
 
@@ -103,6 +109,13 @@ export const ChildDashboardPage = () => {
 
     const checkStatus = async () => {
         try {
+            const token = localStorage.getItem('safeguard_token');
+            if (!token) {
+                console.log('No token found, redirecting to login');
+                handleLogout();
+                return;
+            }
+
             const res = await api.get(`/children/${childId}/status`);
             const { isActive, pauseReason } = res.data.data;
 
@@ -117,7 +130,8 @@ export const ChildDashboardPage = () => {
             console.error("Status check failed", e);
             // If 403/401, it might mean completely locked out or invalid session
             if (e.response?.status === 401 || e.response?.status === 403) {
-                // Potentially force logout or show lock
+                console.log('Auth check failed:', e.response.status);
+                handleLogout();
             }
         }
     };
@@ -187,6 +201,11 @@ export const ChildDashboardPage = () => {
             channelTitle: video.snippet?.channelTitle || video.channelTitle
         };
         setSelectedVideo(normalizedVideo);
+    };
+
+    const handleAddToPlaylist = (video: any) => {
+        setVideoForPlaylist(video);
+        setPlaylistModalOpen(true);
     };
 
     if (!childId) return null;
@@ -259,29 +278,42 @@ export const ChildDashboardPage = () => {
                 )}
             </AnimatePresence>
 
+            {/* Playlist Modal */}
+            {videoForPlaylist && (
+                <AddToPlaylistModal
+                    isOpen={playlistModalOpen}
+                    onClose={() => setPlaylistModalOpen(false)}
+                    video={videoForPlaylist}
+                    childId={childId}
+                />
+            )}
+
             <AnimatePresence>
                 {selectedVideo && (
-                    <motion.div
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex items-center justify-center p-4"
-                    >
-                        <div className="w-full max-w-6xl aspect-video bg-black rounded-3xl overflow-hidden shadow-2xl relative">
-                            <button
-                                onClick={() => setSelectedVideo(null)}
-                                className="absolute top-4 right-4 z-50 bg-black/50 hover:bg-black/70 text-white p-2 rounded-full backdrop-blur-md transition-colors"
-                            >
-                                <X size={24} />
-                            </button>
-                            <SafeVideoPlayer
-                                videoId={selectedVideo.videoId}
-                                childId={childId}
-                                onComplete={() => setSelectedVideo(null)}
-                                onClose={() => setSelectedVideo(null)}
-                            />
-                        </div>
-                    </motion.div>
+                    <SafeVideoPlayer
+                        videoId={selectedVideo.videoId}
+                        videoTitle={selectedVideo.title}
+                        channelId={selectedVideo.channelId || 'Unknown'}
+                        channelName={selectedVideo.channelTitle || 'Unknown'}
+                        childId={childId}
+                        recommendations={[...personalized, ...trending, ...educational].filter(v =>
+                            (v.id?.videoId || v.videoId) !== selectedVideo.videoId
+                        ).slice(0, 10).map(v => ({
+                            videoId: v.id?.videoId || v.videoId,
+                            title: v.snippet?.title || v.title,
+                            thumbnail: v.snippet?.thumbnails?.medium?.url || v.thumbnail,
+                            channelTitle: v.snippet?.channelTitle || v.channelTitle
+                        }))}
+                        onComplete={() => setSelectedVideo(null)}
+                        onClose={() => setSelectedVideo(null)}
+                        onPlayNext={(video) => {
+                            setSelectedVideo({
+                                videoId: video.videoId,
+                                title: video.title,
+                                channelTitle: video.channelTitle
+                            });
+                        }}
+                    />
                 )}
             </AnimatePresence>
 
@@ -302,6 +334,12 @@ export const ChildDashboardPage = () => {
                 </div>
 
                 <div className="flex items-center gap-4">
+                    <button
+                        onClick={() => navigate('/child/playlists')}
+                        className="px-4 py-2 bg-pink-100 text-pink-600 rounded-xl font-bold hover:bg-pink-200 transition-colors"
+                    >
+                        My Playlists
+                    </button>
                     <button
                         onClick={handleLogout}
                         className="p-3 bg-red-50 text-red-500 rounded-2xl hover:bg-red-100 transition-colors"
@@ -376,7 +414,7 @@ export const ChildDashboardPage = () => {
                                 <Search size={24} className="text-yellow-500" />
                                 <h2 className="text-2xl font-black text-gray-800">Results for "{searchQuery}"</h2>
                             </div>
-                            <VideoGrid videos={videos} onPlay={handleVideoClick} />
+                            <VideoGrid videos={videos} onPlay={handleVideoClick} onAddToPlaylist={handleAddToPlaylist} childId={childId} />
                         </div>
                     ) : (
                         /* Dashboard Sections */
@@ -387,6 +425,8 @@ export const ChildDashboardPage = () => {
                                 color="from-purple-500 to-indigo-500"
                                 videos={personalized}
                                 onPlay={handleVideoClick}
+                                onAddToPlaylist={handleAddToPlaylist}
+                                childId={childId}
                             />
                             <Section
                                 title="Trending Now"
@@ -394,6 +434,8 @@ export const ChildDashboardPage = () => {
                                 color="from-orange-500 to-red-500"
                                 videos={trending}
                                 onPlay={handleVideoClick}
+                                onAddToPlaylist={handleAddToPlaylist}
+                                childId={childId}
                             />
                             <Section
                                 title="Learn & Grow"
@@ -401,6 +443,8 @@ export const ChildDashboardPage = () => {
                                 color="from-green-500 to-emerald-500"
                                 videos={educational}
                                 onPlay={handleVideoClick}
+                                onAddToPlaylist={handleAddToPlaylist}
+                                childId={childId}
                             />
                         </div>
                     )}
@@ -412,7 +456,7 @@ export const ChildDashboardPage = () => {
 
 // --- Sub Components ---
 
-const Section = ({ title, videos, onPlay, color, icon }: any) => {
+const Section = ({ title, videos, onPlay, color, icon, onAddToPlaylist, childId }: any) => {
     if (!videos || videos.length === 0) return null;
     return (
         <div className="max-w-full">
@@ -425,7 +469,12 @@ const Section = ({ title, videos, onPlay, color, icon }: any) => {
             <div className="flex gap-6 overflow-x-auto pb-8 px-4 snap-x hide-scrollbar">
                 {videos.map((video: any) => (
                     <div key={video.id?.videoId || video.videoId} className="snap-start shrink-0 w-[280px] sm:w-[320px]">
-                        <VideoCard video={video} onPlay={onPlay} />
+                        <VideoCard
+                            video={video}
+                            onPlay={onPlay}
+                            onAddToPlaylist={onAddToPlaylist}
+                            childId={childId}
+                        />
                     </div>
                 ))}
             </div>
@@ -433,50 +482,16 @@ const Section = ({ title, videos, onPlay, color, icon }: any) => {
     );
 };
 
-const VideoCard = ({ video, onPlay }: any) => {
-
-    const title = video.snippet?.title || video.title;
-    const channelTitle = video.snippet?.channelTitle || video.channelTitle;
-    const thumbnail = video.snippet?.thumbnails?.high?.url || video.thumbnail || video.snippet?.thumbnails?.default?.url;
-
-    return (
-        <motion.div
-            whileHover={{ scale: 1.05, y: -5 }}
-            className="bg-white rounded-3xl overflow-hidden shadow-xl shadow-gray-100/50 border border-gray-50 cursor-pointer group h-full flex flex-col"
-            onClick={() => onPlay(video)}
-        >
-            <div className="aspect-video relative overflow-hidden bg-gray-100">
-                <img src={thumbnail} alt={title} className="w-full h-full object-cover" />
-                <div className="absolute inset-0 bg-black/10 group-hover:bg-transparent transition-colors" />
-                <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                    <div className="w-14 h-14 bg-white/90 text-black rounded-full flex items-center justify-center shadow-xl">
-                        <Play size={24} fill="currentColor" className="ml-1" />
-                    </div>
-                </div>
-            </div>
-            <div className="p-4 flex-1 flex flex-col">
-                <h3 className="font-bold text-gray-800 line-clamp-2 leading-tight mb-auto text-base">
-                    {title}
-                </h3>
-                <div className="mt-3 flex items-center justify-between">
-                    <p className="text-xs font-bold text-gray-400 uppercase tracking-wide truncate pr-2">
-                        {channelTitle}
-                    </p>
-                </div>
-            </div>
-        </motion.div>
-    );
-};
-
-const VideoGrid = ({ videos, onPlay }: any) => (
+const VideoGrid = ({ videos, onPlay, onAddToPlaylist, childId }: any) => (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 px-4">
         {videos.map((video: any) => (
             <VideoCard
                 key={video.id?.videoId || video.videoId}
                 video={video}
                 onPlay={onPlay}
+                onAddToPlaylist={onAddToPlaylist}
+                childId={childId}
             />
         ))}
     </div>
 );
-

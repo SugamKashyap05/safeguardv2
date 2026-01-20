@@ -55,4 +55,52 @@ export class ParentController {
         await parentService.updateOnboardingStep(req.user.id, step);
         return ApiResponse.success(res, { step }, 'Onboarding step updated');
     }
+
+    /**
+     * Get Parent Settings
+     * GET /api/v1/parents/settings
+     */
+    static async getSettings(req: Request, res: Response) {
+        if (!req.user?.id) {
+            return ApiResponse.error(res, 'Not authenticated', HTTP_STATUS.UNAUTHORIZED);
+        }
+        const settings = await parentService.getSettings(req.user.id);
+        return ApiResponse.success(res, settings, 'Settings retrieved successfully');
+    }
+
+    /**
+     * Update Parent Settings
+     * PUT /api/v1/parents/settings
+     */
+    static async updateSettings(req: Request, res: Response) {
+        if (!req.user?.id) {
+            return ApiResponse.error(res, 'Not authenticated', HTTP_STATUS.UNAUTHORIZED);
+        }
+
+        const { name, phone_number, notification_preferences } = req.body;
+        const updated = await parentService.updateSettings(req.user.id, {
+            name,
+            phone_number,
+            notification_preferences
+        });
+        return ApiResponse.success(res, updated, 'Settings updated successfully');
+    }
+
+    /**
+     * Change Password
+     * POST /api/v1/parents/change-password
+     */
+    static async changePassword(req: Request, res: Response) {
+        if (!req.user?.id) {
+            return ApiResponse.error(res, 'Not authenticated', HTTP_STATUS.UNAUTHORIZED);
+        }
+
+        const { newPassword } = req.body;
+        if (!newPassword || newPassword.length < 6) {
+            return ApiResponse.error(res, 'Password must be at least 6 characters', HTTP_STATUS.BAD_REQUEST);
+        }
+
+        await parentService.changePassword(req.user.id, newPassword);
+        return ApiResponse.success(res, null, 'Password changed successfully');
+    }
 }

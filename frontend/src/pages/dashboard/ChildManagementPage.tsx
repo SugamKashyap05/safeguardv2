@@ -1,5 +1,6 @@
 
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { ChildService } from '../../services/auth.service';
 import { ChildCard } from '../../components/children/ChildCard';
 import { AddChildModal } from '../../components/children/AddChildModal';
@@ -8,6 +9,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { ChildDevicesList } from '../../components/dashboard/ChildDevicesList';
 
 export const ChildManagementPage = () => {
+    const navigate = useNavigate();
     const [children, setChildren] = useState<any[]>([]);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
@@ -51,11 +53,12 @@ export const ChildManagementPage = () => {
                     <ChildCard
                         key={child.id}
                         child={child}
-                        onEdit={(c) => console.log('Edit', c)}
+                        onEdit={(c) => navigate(`/parent/child/${c.id}/manage`)}
                         onTogglePause={(c) => console.log('Pause', c)}
                         onViewActivity={(id) => console.log('Activity', id)}
-                        onManageChannels={(id) => console.log('Channels', id)}
+                        onManageChannels={(id) => navigate(`/parent/channels/${id}`)}
                         onManageDevices={(c) => setManagingChild(c)}
+                        onManagePlaylists={(c) => navigate(`/parent/child/${c.id}/playlists`)}
                     />
                 ))}
 
