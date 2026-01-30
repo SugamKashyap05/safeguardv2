@@ -11,6 +11,7 @@ router.use(requireParent);
 router.post('/pause/:childId', asyncWrapper(EmergencyController.pauseChild));
 router.post('/resume/:childId', asyncWrapper(EmergencyController.resumeChild));
 router.post('/panic-pause', asyncWrapper(EmergencyController.panicPause));
+router.post('/panic-resume', asyncWrapper(EmergencyController.panicResume));
 router.post('/block-content', asyncWrapper(EmergencyController.blockContent));
 
 export default router;

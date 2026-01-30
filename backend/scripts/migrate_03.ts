@@ -1,28 +1,32 @@
-import { supabaseAdmin } from '../src/config/supabase';
+import { Client } from 'pg';
 import fs from 'fs';
 import path from 'path';
+import { env } from '../src/config/env';
 
 async function runMigration() {
     console.log('Running Migration 03_content_filters...');
+
+    if (!env.DATABASE_URL) {
+        console.error('DATABASE_URL not found in env');
+        process.exit(1);
+    }
+
+    const client = new Client({
+        connectionString: env.DATABASE_URL,
+        ssl: { rejectUnauthorized: false } // Required for Supabase
+    });
+
     try {
+        await client.connect();
         const sqlPath = path.join(__dirname, '../src/db/migrations/03_content_filters.sql');
         const sql = fs.readFileSync(sqlPath, 'utf8');
 
-        // Split by statement if needed, or run as one block if pg driver supports it.
-        // Supabase RPC 'exec_sql' ? Or just raw query?
-        // Supabase JS client doesn't support raw SQL on 'public' schema directly easily via 'rpc' unless we have a function.
-        // But we are using service role key, so maybe we can use a workaround or just hope the user runs it?
-        // Wait, I can't execute raw SQL via supabase-js unless I have an RPC function for it.
-
-        // Alternative: Use a 'pg' client connection if I had one? 
-        // I don't see 'pg' in package.json.
-
-        // I'll assume I can't run it automatically without 'pg' or a Supabase SQL Editor.
-        // I will just Notify the User to run it.
-        console.log('Cannot auto-execute SQL. Please run src/db/migrations/03_content_filters.sql in Supabase SQL Editor.');
-
+        await client.query(sql);
+        console.log('Successfully applied migration 03_content_filters');
     } catch (err) {
         console.error('Migration failed', err);
+    } finally {
+        await client.end();
     }
 }
 

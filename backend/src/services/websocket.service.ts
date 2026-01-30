@@ -12,9 +12,9 @@ interface SocketUser {
 }
 
 export class WebSocketService {
-    private io: Server;
+    private io: Server | undefined;
 
-    constructor(server: HttpServer) {
+    initialize(server: HttpServer) {
         this.io = new Server(server, {
             cors: {
                 origin: [
@@ -34,6 +34,7 @@ export class WebSocketService {
     }
 
     private initializeMiddlewares() {
+        if (!this.io) return;
         this.io.use(async (socket, next) => {
             try {
                 const token = socket.handshake.auth.token;
@@ -68,6 +69,7 @@ export class WebSocketService {
     }
 
     private initializeEvents() {
+        if (!this.io) return;
         this.io.on('connection', (socket: Socket) => {
             console.log(`Socket connected: ${socket.id} (User: ${socket.data.user?.id})`);
             const user = socket.data.user as SocketUser;
@@ -107,6 +109,7 @@ export class WebSocketService {
 
     // Public method to emit events from controllers/services
     public emitToChild(childId: string, event: string, data: any) {
+        if (!this.io) return;
         this.io.to(`child_${childId}`).emit(event, data);
     }
 
@@ -117,3 +120,5 @@ export class WebSocketService {
         // Ideal: Map deviceId -> socketId
     }
 }
+
+export const socketService = new WebSocketService();

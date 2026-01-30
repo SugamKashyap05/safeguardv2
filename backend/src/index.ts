@@ -32,10 +32,10 @@ app.use(errorHandler);
 
 // Start Server
 import { createServer } from 'http';
-import { WebSocketService } from './services/websocket.service';
+import { socketService } from './services/websocket.service';
 
 const httpServer = createServer(app);
-const ioService = new WebSocketService(httpServer);
+socketService.initialize(httpServer);
 
 httpServer.listen(env.PORT, () => {
     console.log(`Server running on port ${env.PORT}`);

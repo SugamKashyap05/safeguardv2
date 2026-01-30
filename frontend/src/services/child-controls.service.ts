@@ -53,12 +53,12 @@ export const ChildControlsService = {
 
     // Content Filters  
     async getContentFilters(childId: string): Promise<any> {
-        const response = await api.get(`/content-filter/${childId}`);
+        const response = await api.get(`/filters/${childId}`);
         return response.data.data;
     },
 
     async updateContentFilters(childId: string, filters: any): Promise<void> {
-        await api.put(`/content-filter/${childId}`, filters);
+        await api.put(`/filters/${childId}`, filters);
     },
 
     // Child Info

@@ -87,6 +87,40 @@ export class EmergencyService {
     }
 
     /**
+     * Panic Resume (Resume all children for a parent)
+     */
+    async panicResumeAll(parentId: string) {
+        // 1. Get all children IDs
+        const { data: children } = await supabaseAdmin
+            .from('children')
+            .select('id')
+            .eq('parent_id', parentId);
+
+        if (!children?.length) return { success: true, count: 0 };
+
+        const childIds = children.map(c => c.id);
+
+        // 2. Update all to active
+        const { error } = await supabaseAdmin
+            .from('children')
+            .update({
+                is_active: true,
+                pause_reason: null,
+                paused_until: null
+            })
+            .in('id', childIds);
+
+        if (error) throw new AppError('Panic resume failed', HTTP_STATUS.INTERNAL_SERVER_ERROR);
+
+        // 3. Log Activity
+        for (const id of childIds) {
+            await this.logActivity(id, 'emergency_panic_resume', {});
+        }
+
+        return { success: true, count: childIds.length };
+    }
+
+    /**
      * Emergency Block Content
      */
     async emergencyBlock(childId: string, type: 'video' | 'channel', id: string) {

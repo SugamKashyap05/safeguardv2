@@ -11,6 +11,7 @@ export const env = cleanEnv(process.env, {
     SUPABASE_ANON_KEY: str({ desc: 'Supabase Anon Key' }),
     SUPABASE_SERVICE_ROLE_KEY: str({ desc: 'Supabase Service Role Key (Admin)' }),
     SUPABASE_JWT_SECRET: str({ desc: 'Supabase JWT Secret' }),
+    DATABASE_URL: str({ desc: 'PostgreSQL Connection String' }),
 
     // External Services
     CORS_ORIGIN: str({ default: 'http://localhost:5173' }),

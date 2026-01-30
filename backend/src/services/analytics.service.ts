@@ -247,6 +247,19 @@ export class AnalyticsService {
         return { topCategories, topChannels, topVideos };
     }
 
+    async getBlockedHistory(childId: string, limit: number = 20) {
+        const { data, error } = await supabaseAdmin
+            .from('watch_history')
+            .select('*')
+            .eq('child_id', childId)
+            .eq('was_blocked', true)
+            .order('watched_at', { ascending: false })
+            .limit(limit);
+
+        if (error) throw error;
+        return data || [];
+    }
+
     private async getSafetyStats(childId: string, startDate: Date, endDate: Date) {
         // Blocked attempts
         const { count: blockedCount } = await supabaseAdmin

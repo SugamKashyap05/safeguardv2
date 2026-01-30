@@ -11,6 +11,7 @@ const router = Router();
 // 1. Static Routes (Must function before :childId capture)
 router.post('/favorite/toggle', asyncWrapper(PlaylistController.toggleFavorite));
 router.get('/favorite/check', asyncWrapper(PlaylistController.checkFavorite));
+router.get('/discover', asyncWrapper(PlaylistController.discover));
 
 // 2. Dynamic Routes
 router.get('/:childId', asyncWrapper(PlaylistController.getPlaylists));

@@ -1,6 +1,7 @@
 import { supabaseAdmin } from '../config/supabase';
 import { AppError } from '../utils/AppError';
 import { HTTP_STATUS } from '../utils/httpStatus';
+import { questService } from './quest.service';
 
 interface WatchLogData {
     childId: string;
@@ -52,7 +53,7 @@ export class ActivityTrackingService {
     async updateProgress(historyId: string, watchedDuration: number, duration: number) {
         const percentage = duration > 0 ? Math.round((watchedDuration / duration) * 100) : 0;
 
-        const { error } = await supabaseAdmin
+        const { data: updateResult, error } = await supabaseAdmin
             .from('watch_history')
             .update({
                 watched_duration: watchedDuration,
@@ -60,7 +61,44 @@ export class ActivityTrackingService {
                 // If > 90%, mark complete? Or explicit call?
                 completed_watch: percentage >= 90
             })
-            .eq('id', historyId);
+            .eq('id', historyId)
+            .select('child_id') // Needed to know child
+            .single();
+
+        if (error) throw error;
+
+        // --- Gamification Hook ---
+        // For simplicity, we just add the *increment*? 
+        // No, updateProgress takes total.
+        // QuestService updateProgress adds delta.
+        // We typically receive absolute watchedDuration. 
+        // We need to know delta to add to quest. 
+        // OR we can just add 1 minute every minute.
+        // The frontend sends periodic updates.
+        // Let's assume frontend sends updates every X seconds.
+        // Ideally we compare with previous value.
+        // BUT, a simpler approach for MVP:
+        // Calculate delta from previous DB state? Fetching it is expensive?
+        // Let's rely on frontend sending heartbeats and assume roughly 30s-60s chunks?
+        // Actually, safer:
+        // questService.updateProgress('watch_time', delta)
+        // We don't have delta easily here without read.
+        // Let's do a quick read of previous duration if feasible.
+        // OR: Since we just updated, maybe we just assume if progress > prev...
+
+        // ALTERNATIVE: Just hook 'videos_watched' on completion for now to be safe.
+        // 'watch_time' is harder without delta. 
+        // Let's implement 'videos_watched' first in markComplete.
+
+        // If we really want watch time, we need to know how much was added.
+        // Let's try to get child_id from the update result.
+        // @ts-ignore
+        if (updateResult && updateResult.child_id) {
+            // We can't easily do exact minutes without diff.
+            // Let's leave watch_time for next iteration and focus on videos_watched.
+        }
+
+        return { success: true, percentage };
 
         if (error) throw error;
         return { success: true, percentage };
@@ -70,15 +108,23 @@ export class ActivityTrackingService {
      * Mark Complete
      */
     async markComplete(historyId: string) {
-        const { error } = await supabaseAdmin
+        const { data: updateResult, error } = await supabaseAdmin
             .from('watch_history')
             .update({
                 completed_watch: true,
                 watch_percentage: 100
             })
-            .eq('id', historyId);
+            .eq('id', historyId)
+            .select('child_id')
+            .single();
 
         if (error) throw error;
+
+        // Gamification Hook
+        if (updateResult) {
+            await questService.updateProgress(updateResult.child_id, 'videos_watched', 1);
+        }
+
         return true;
     }
 

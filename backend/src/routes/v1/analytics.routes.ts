@@ -9,5 +9,6 @@ const router = Router();
 router.get('/child/:childId', requireParent, asyncWrapper(AnalyticsController.getChildAnalytics));
 router.get('/parent/dashboard', requireParent, asyncWrapper(AnalyticsController.getParentDashboard));
 router.get('/insights/:childId', requireParent, asyncWrapper(AnalyticsController.getInsights));
+router.get('/blocked/:childId', requireParent, asyncWrapper(AnalyticsController.getBlockedHistory));
 
 export default router;

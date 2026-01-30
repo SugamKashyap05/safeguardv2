@@ -25,6 +25,8 @@ export const ChildProfile: React.FC<ChildProfileProps> = ({
         xl: 'w-24 h-24 text-3xl'
     };
 
+    if (!child) return null;
+
     return (
         <div className={clsx('flex items-center gap-3', className)}>
             <div className={clsx(

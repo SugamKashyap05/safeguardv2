@@ -44,6 +44,10 @@ export class ChildAuthService {
         }
 
         // 3. Check if paused
+        if (!child.is_active) {
+            throw new AppError('Account is paused by parent', HTTP_STATUS.FORBIDDEN);
+        }
+
         if (child.paused_until && new Date(child.paused_until) > new Date()) {
             throw new AppError('Access is paused until ' + new Date(child.paused_until).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), HTTP_STATUS.FORBIDDEN);
         }

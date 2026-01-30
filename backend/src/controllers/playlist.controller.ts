@@ -79,4 +79,9 @@ export class PlaylistController {
         await PlaylistService.reorderItems(id, orderedIds);
         res.json({ success: true, message: 'Playlist reordered' });
     }
+
+    static async discover(req: Request, res: Response) {
+        const result = await PlaylistService.getDiscoveryPlaylists();
+        res.json({ success: true, data: result });
+    }
 }

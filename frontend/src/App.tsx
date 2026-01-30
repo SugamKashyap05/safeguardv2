@@ -20,9 +20,13 @@ import { ChildAnalyticsPage } from './pages/dashboard/ChildAnalyticsPage';
 import { PlaylistsPage } from './pages/child/PlaylistsPage';
 import { PlaylistDetailPage } from './pages/child/PlaylistDetailPage';
 import { MyRequestsPage } from './pages/child/MyRequestsPage';
+import { QuestsPage } from './pages/gamification/QuestsPage';
+import { ShopPage } from './pages/gamification/ShopPage';
+import { AchievementsPage } from './pages/gamification/AchievementsPage';
 import { ErrorBoundary } from './components/common/ErrorBoundary';
 
 import { SocketProvider } from './contexts/SocketContext';
+import { GamificationProvider } from './contexts/GamificationContext';
 
 // ... (imports)
 
@@ -31,7 +35,9 @@ const ChildDashboardWrapper = () => {
     const token = localStorage.getItem('safeguard_token') || undefined;
     return (
         <SocketProvider token={token} role="child">
-            <ChildDashboardPage />
+            <GamificationProvider>
+                <ChildDashboardPage />
+            </GamificationProvider>
         </SocketProvider>
     );
 };
@@ -54,7 +60,11 @@ function App() {
                     <Route path="/child/dashboard" element={<ChildDashboardWrapper />} />
                     <Route path="/child/playlists" element={<PlaylistsPage />} />
                     <Route path="/child/playlists/:id" element={<PlaylistDetailPage />} />
+                    <Route path="/child/playlists/:id" element={<PlaylistDetailPage />} />
                     <Route path="/child/requests" element={<MyRequestsPage />} />
+                    <Route path="/child/quests" element={<QuestsPage />} />
+                    <Route path="/child/shop" element={<ShopPage />} />
+                    <Route path="/child/achievements" element={<AchievementsPage />} />
 
                     {/* Parent Routes */}
                     <Route path="/parent/dashboard" element={<ParentDashboardPage />} />

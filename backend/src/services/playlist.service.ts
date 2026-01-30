@@ -383,4 +383,45 @@ export class PlaylistService {
             }
         }
     }
+    /**
+     * Get Curated Discovery Playlists
+     */
+    static async getDiscoveryPlaylists() {
+        return {
+            education: [
+                {
+                    id: 'PL8dPuuaLjXtN0ge77e6y8l5G2lzXwYI_p',
+                    title: 'Crash Course Kids',
+                    description: 'Science for kids',
+                    thumbnail: 'https://i.ytimg.com/vi/k0XH6l4a3I8/hqdefault.jpg',
+                    item_count: 50
+                },
+                {
+                    id: 'PL139F241EBC37D97F',
+                    title: 'Story Time',
+                    description: 'Read aloud books for children',
+                    thumbnail: 'https://i.ytimg.com/vi/1_I-wK5vB3E/hqdefault.jpg',
+                    item_count: 25
+                },
+            ],
+            music: [
+                {
+                    id: 'PLdkj6XH8GYPRl_mM2rN7K9eM8s0G5D-xX',
+                    title: 'Disney Sing-Alongs',
+                    description: 'Favorite Disney songs',
+                    thumbnail: 'https://i.ytimg.com/vi/L0MK7qz13bU/hqdefault.jpg',
+                    item_count: 40
+                },
+            ],
+            science: [
+                {
+                    id: 'PLQlnTldJs0ZQq-C-lsnACLUn_7M8QfJ_x',
+                    title: 'Nat Geo Kids',
+                    description: 'Animals and nature',
+                    thumbnail: 'https://i.ytimg.com/vi/DefLknjRjV0/hqdefault.jpg',
+                    item_count: 30
+                }
+            ]
+        };
+    }
 }

@@ -137,6 +137,12 @@ export class ContentFilterService {
                 // 1=Film, 10=Music, 27=Edu, 29=Nonprofits
                 // return { allowed: false, reason: 'Preschool: Category not educational' };
             }
+
+            // Keyword safeguard for young kids
+            const unsafeForPreschool = ['scary', 'spooky', 'ghost', 'zombie', 'love', 'kiss', 'dating', 'boyfriend', 'girlfriend'];
+            if (new RegExp(unsafeForPreschool.join('|'), 'i').test(video.title)) {
+                return { allowed: false, reason: 'Found inappropriate keyword for preschool' };
+            }
         }
 
         // Early Elementary
@@ -153,11 +159,21 @@ export class ContentFilterService {
      * Manage Filters
      */
     async getFilters(childId: string) {
-        let { data } = await supabaseAdmin.from('content_filters').select('*').eq('child_id', childId).single();
+        let { data, error } = await supabaseAdmin.from('content_filters').select('*').eq('child_id', childId).maybeSingle();
+
+        if (error) throw error;
+
         if (!data) {
             // Create default if missing
-            const { data: newFilters, error } = await supabaseAdmin.from('content_filters').insert({ child_id: childId }).select().single();
-            if (error) throw error;
+            const { data: newFilters, error: insertError } = await supabaseAdmin.from('content_filters').insert({ child_id: childId }).select().single();
+
+            if (insertError) {
+                // Check if it's a foreign key violation (child doesn't exist)
+                if (insertError.code === '23503') {
+                    throw new AppError('Child not found', HTTP_STATUS.NOT_FOUND);
+                }
+                throw insertError;
+            }
             return newFilters;
         }
         return data;
@@ -166,8 +182,7 @@ export class ContentFilterService {
     async updateFilters(childId: string, updates: any) {
         const { error } = await supabaseAdmin
             .from('content_filters')
-            .upsert({ ...updates, child_id: childId, updated_at: new Date() })
-            .eq('child_id', childId);
+            .upsert({ ...updates, child_id: childId, updated_at: new Date() }, { onConflict: 'child_id' });
         if (error) throw error;
         return true;
     }

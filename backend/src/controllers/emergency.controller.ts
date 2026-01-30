@@ -34,6 +34,13 @@ export class EmergencyController {
         return ApiResponse.success(res, result);
     }
 
+    static async panicResume(req: Request, res: Response) {
+        // @ts-ignore
+        const parentId = req.user!.id;
+        const result = await service.panicResumeAll(parentId);
+        return ApiResponse.success(res, result);
+    }
+
     static async blockContent(req: Request, res: Response) {
         const { childId, type, id } = req.body;
 

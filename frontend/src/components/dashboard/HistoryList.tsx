@@ -2,15 +2,25 @@ import React, { useEffect, useState } from 'react';
 import { api } from '../../services/api';
 import { Play, Calendar, Clock } from 'lucide-react';
 
+interface WatchHistoryItem {
+    id: string;
+    video_title: string;
+    video_id: string;
+    channel_name: string;
+    thumbnail?: string;
+    watched_duration: number;
+    watched_at: string;
+    was_blocked?: boolean;
+    block_reason?: string;
+}
+
 export const HistoryList = ({ childId }: { childId: string }) => {
-    const [history, setHistory] = useState<any[]>([]);
+    const [history, setHistory] = useState<WatchHistoryItem[]>([]);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
         const loadHistory = async () => {
             try {
-                // If no childId, we can't fetch strictly child-specific history without backend aggregator or loop.
-                // Assuming childId is passed.
                 if (!childId) return;
                 const res = await api.get(`/watch/history/${childId}`);
                 setHistory(res.data.data.data);

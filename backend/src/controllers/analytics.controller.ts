@@ -58,4 +58,19 @@ export class AnalyticsController {
 
         return ApiResponse.success(res, { insights: analytics.insights }, 'Insights retrieved');
     }
+    /**
+     * Get blocked history
+     * GET /analytics/blocked/:childId
+     */
+    static async getBlockedHistory(req: Request, res: Response) {
+        const { childId } = req.params;
+        const parentId = req.user?.id;
+
+        if (!parentId) {
+            return ApiResponse.error(res, 'Unauthorized', HTTP_STATUS.UNAUTHORIZED);
+        }
+
+        const history = await analyticsService.getBlockedHistory(childId);
+        return ApiResponse.success(res, history, 'Blocked history retrieved');
+    }
 }

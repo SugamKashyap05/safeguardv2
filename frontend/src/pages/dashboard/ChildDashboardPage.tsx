@@ -9,9 +9,63 @@ import { useSocket } from '../../contexts/SocketContext';
 import { VideoCard } from '../../components/children/VideoCard';
 import { AddToPlaylistModal } from '../../components/playlists/AddToPlaylistModal';
 import { Skeleton } from '../../components/common/Skeleton';
+import { useGamification } from '../../contexts/GamificationContext';
+import { StarDisplay } from '../../components/gamification/StarDisplay';
+import { BadgeShowcase } from '../../components/gamification/BadgeShowcase';
+import { LevelProgressBar } from '../../components/gamification/LevelProgressBar';
+import { QuestLog } from '../../components/gamification/QuestLog';
+import { AvatarEditor } from '../../components/gamification/AvatarEditor';
+
+// --- Sub Components ---
+
+function Section({ title, videos, onPlay, color, icon, onAddToPlaylist, childId }: any) {
+    if (!videos || videos.length === 0) return null;
+    return (
+        <div className="max-w-full">
+            <div className="flex items-center gap-3 mb-6 px-4">
+                <span className="text-2xl p-2 bg-white rounded-xl shadow-sm border border-gray-100">{icon}</span>
+                <h2 className={`text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r ${color}`}>{title}</h2>
+            </div>
+
+            {/* Horizontal Scroll */}
+            <div className="flex gap-6 overflow-x-auto pb-8 px-4 snap-x hide-scrollbar">
+                {videos.map((video: any) => (
+                    <div key={video.id?.videoId || video.videoId} className="snap-start shrink-0 w-[280px] sm:w-[320px]">
+                        <VideoCard
+                            video={video}
+                            onPlay={onPlay}
+                            onAddToPlaylist={onAddToPlaylist}
+                            childId={childId}
+                        />
+                    </div>
+                ))}
+            </div>
+        </div>
+    );
+}
+
+function VideoGrid({ videos, onPlay, onAddToPlaylist, childId }: any) {
+    return (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 px-4">
+            {videos.map((video: any) => (
+                <VideoCard
+                    key={video.id?.videoId || video.videoId}
+                    video={video}
+                    onPlay={onPlay}
+                    onAddToPlaylist={onAddToPlaylist}
+                    childId={childId}
+                />
+            ))}
+        </div>
+    );
+}
 
 export const ChildDashboardPage = () => {
     const navigate = useNavigate();
+    const { stars, totalStars, setStars, setTotalStars, badges, refreshBadges } = useGamification();
+    // Assuming context doesn't expose total_stars_earned yet, let's use stars as proxy or update context.
+    // Ideally update context, but for speed let's just use stars for now (assuming no spending yet).
+    // Actually, spending exists in plan. Let's update context quickly.
     const [videos, setVideos] = useState<any[]>([]); // Search results
     const [personalized, setPersonalized] = useState<any[]>([]);
     const [trending, setTrending] = useState<any[]>([]);
@@ -33,6 +87,7 @@ export const ChildDashboardPage = () => {
     // Playlist Modal State
     const [playlistModalOpen, setPlaylistModalOpen] = useState(false);
     const [videoForPlaylist, setVideoForPlaylist] = useState<any>(null);
+    const [showAvatarEditor, setShowAvatarEditor] = useState(false);
 
     const { socket } = useSocket() || {};
 
@@ -49,6 +104,7 @@ export const ChildDashboardPage = () => {
         loadRecommendations();
         loadSuggestions();
         checkStatus();
+        refreshBadges(childId);
 
         // Poll status every minute
         const interval = setInterval(checkStatus, 60000);
@@ -116,7 +172,10 @@ export const ChildDashboardPage = () => {
             }
 
             const res = await api.get(`/children/${childId}/status`);
-            const { isActive, pauseReason } = res.data.data;
+            const { isActive, pauseReason, stars, totalStars } = res.data.data;
+
+            if (stars !== undefined) setStars(stars);
+            if (totalStars !== undefined) setTotalStars(totalStars);
 
             if (!isActive) {
                 setIsPaused(true);
@@ -317,14 +376,26 @@ export const ChildDashboardPage = () => {
                 )}
             </AnimatePresence>
 
+            {/* Avatar Editor Modal */}
+            <AnimatePresence>
+                {showAvatarEditor && (
+                    <AvatarEditor
+                        childId={childId}
+                        onClose={() => setShowAvatarEditor(false)}
+                    />
+                )}
+            </AnimatePresence>
+
             {/* Timer Overlay */}
             <ChildTimer childId={childId} />
 
             {/* Header */}
             <header className="sticky top-0 bg-white/80 backdrop-blur-md z-30 px-6 py-4 shadow-sm flex items-center justify-between">
                 <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 bg-yellow-400 rounded-full flex items-center justify-center text-2xl shadow-inner border-2 border-yellow-200">
-                        {/* Avatar placeholder */}
+                    <div className="w-12 h-12 bg-yellow-400 rounded-full flex items-center justify-center text-2xl shadow-inner border-2 border-yellow-200 cursor-pointer hover:scale-110 transition-transform"
+                        onClick={() => navigate('/child/shop')}
+                    >
+                        {/* Avatar placeholder - click to edit */}
                         🐼
                     </div>
                     <div>
@@ -334,6 +405,8 @@ export const ChildDashboardPage = () => {
                 </div>
 
                 <div className="flex items-center gap-4">
+                    <LevelProgressBar totalStarsEarned={totalStars || 0} />
+                    <StarDisplay stars={stars || 0} />
                     <button
                         onClick={() => navigate('/child/requests')}
                         className="px-4 py-2 bg-blue-100 text-blue-600 rounded-xl font-bold hover:bg-blue-200 transition-colors"
@@ -431,6 +504,12 @@ export const ChildDashboardPage = () => {
                     ) : (
                         /* Dashboard Sections */
                         <div className="space-y-12">
+                            {/* Daily Quests - Interactive Summary */}
+                            <div onClick={() => navigate('/child/quests')} className="cursor-pointer transition-transform hover:scale-[1.01]">
+                                <QuestLog childId={childId} />
+                                <div className="text-center mt-2 text-indigo-600 font-bold hover:underline">View All Quests</div>
+                            </div>
+
                             <Section
                                 title="Just for You"
                                 icon={<Sparkles className="text-purple-500" />}
@@ -458,6 +537,14 @@ export const ChildDashboardPage = () => {
                                 onAddToPlaylist={handleAddToPlaylist}
                                 childId={childId}
                             />
+
+                            {/* Gamification Area */}
+                            {!loading && !searchQuery && (
+                                <div className="mt-12 cursor-pointer" onClick={() => navigate('/child/achievements')}>
+                                    <BadgeShowcase badges={badges} />
+                                    <div className="text-center mt-2 text-indigo-600 font-bold hover:underline">View All Achievements</div>
+                                </div>
+                            )}
                         </div>
                     )}
                 </div>
@@ -466,46 +553,3 @@ export const ChildDashboardPage = () => {
     );
 };
 
-// --- Sub Components ---
-
-function Section({ title, videos, onPlay, color, icon, onAddToPlaylist, childId }: any) {
-    if (!videos || videos.length === 0) return null;
-    return (
-        <div className="max-w-full">
-            <div className="flex items-center gap-3 mb-6 px-4">
-                <span className="text-2xl p-2 bg-white rounded-xl shadow-sm border border-gray-100">{icon}</span>
-                <h2 className={`text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r ${color}`}>{title}</h2>
-            </div>
-
-            {/* Horizontal Scroll */}
-            <div className="flex gap-6 overflow-x-auto pb-8 px-4 snap-x hide-scrollbar">
-                {videos.map((video: any) => (
-                    <div key={video.id?.videoId || video.videoId} className="snap-start shrink-0 w-[280px] sm:w-[320px]">
-                        <VideoCard
-                            video={video}
-                            onPlay={onPlay}
-                            onAddToPlaylist={onAddToPlaylist}
-                            childId={childId}
-                        />
-                    </div>
-                ))}
-            </div>
-        </div>
-    );
-}
-
-function VideoGrid({ videos, onPlay, onAddToPlaylist, childId }: any) {
-    return (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 px-4">
-            {videos.map((video: any) => (
-                <VideoCard
-                    key={video.id?.videoId || video.videoId}
-                    video={video}
-                    onPlay={onPlay}
-                    onAddToPlaylist={onAddToPlaylist}
-                    childId={childId}
-                />
-            ))}
-        </div>
-    );
-}

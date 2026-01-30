@@ -24,9 +24,10 @@ const CATEGORIES = [
 
 export const FilterPanel: React.FC<FilterPanelProps> = ({ filters, onChange, isLoading = false }) => {
     const handleCategoryToggle = (catId: string) => {
-        const newCategories = filters.blockedCategories.includes(catId)
-            ? filters.blockedCategories.filter(id => id !== catId)
-            : [...filters.blockedCategories, catId];
+        const currentCategories = filters.blockedCategories || [];
+        const newCategories = currentCategories.includes(catId)
+            ? currentCategories.filter(id => id !== catId)
+            : [...currentCategories, catId];
         onChange({ ...filters, blockedCategories: newCategories });
     };
 
@@ -64,13 +65,13 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({ filters, onChange, isL
                 <label className="block text-sm font-medium text-gray-700 mb-3">Blocked Categories</label>
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                     {CATEGORIES.map(cat => {
-                        const isBlocked = filters.blockedCategories.includes(cat.id);
+                        const isBlocked = (filters.blockedCategories || []).includes(cat.id);
                         return (
                             <label
                                 key={cat.id}
                                 className={`flex items-start gap-3 p-3 border rounded-xl cursor-pointer transition-colors ${isBlocked
-                                        ? 'border-red-300 bg-red-50'
-                                        : 'border-gray-200 hover:bg-gray-50'
+                                    ? 'border-red-300 bg-red-50'
+                                    : 'border-gray-200 hover:bg-gray-50'
                                     }`}
                             >
                                 <input

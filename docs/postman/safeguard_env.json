@@ -1,0 +1,32 @@
+{
+    "id": "safeguard-env",
+    "name": "Safeguard Env",
+    "values": [
+        {
+            "key": "baseUrl",
+            "value": "http://localhost:3000/api/v1",
+            "enabled": true
+        },
+        {
+            "key": "authToken",
+            "value": "",
+            "enabled": true
+        },
+        {
+            "key": "childToken",
+            "value": "",
+            "enabled": true
+        },
+        {
+            "key": "parentId",
+            "value": "",
+            "enabled": true
+        },
+        {
+            "key": "childId",
+            "value": "",
+            "enabled": true
+        }
+    ],
+    "_postman_variable_scope": "environment"
+}

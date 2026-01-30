@@ -38,13 +38,18 @@ export class SafeSearchService {
         // 1. Sanitize
         const cleanQuery = await this.sanitizeQuery(query, childId);
 
-        // 2. Get Child Age for Context (Optional, for now generic safe search)
-        // const { data: child } = await supabaseAdmin.from('children').select('age_level').eq('id', childId).single();
+        // 2. Get Child Age for Context
+        const { data: child } = await supabaseAdmin
+            .from('children')
+            .select('age_appropriate_level')
+            .eq('id', childId)
+            .single();
+
+        const ageLevel = child?.age_appropriate_level || 'all';
 
         // 3. Search YouTube
         // YouTubeService already has safeSearch: 'strict'
-        // YouTubeService already has safeSearch: 'strict'
-        const results = await youtubeService.searchVideos(cleanQuery, 'all') as any[]; // 'all' age level for now
+        const results = await youtubeService.searchVideos(cleanQuery, ageLevel) as any[];
 
         // 4. Double Check Results (Post-Filter)
         // Check titles/descriptions against blocklist again because YouTube might let some through

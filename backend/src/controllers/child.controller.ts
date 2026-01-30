@@ -111,7 +111,9 @@ export class ChildController {
             return ApiResponse.success(res, {
                 isActive: child.is_active,
                 pauseReason: child.pause_reason,
-                pausedUntil: child.paused_until
+                pausedUntil: child.paused_until,
+                stars: child.stars || 0,
+                totalStars: child.total_stars_earned || 0
             }, 'Child status retrieved');
         }
 

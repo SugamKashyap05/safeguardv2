@@ -68,11 +68,13 @@ CREATE TABLE IF NOT EXISTS public.children (
   age INTEGER NOT NULL CHECK (age >= 3 AND age <= 10),
   avatar TEXT,
   pin_hash TEXT NOT NULL,
-  age_appropriate_level TEXT NOT NULL CHECK (age_appropriate_level IN ('preschool', 'early-elementary', 'elementary')),
+  age_appropriate_level TEXT NOT NULL CHECK (age_appropriate_level IN ('preschool', 'early-elementary', 'elementary', 'tweens', 'teens')),
   preferences JSONB DEFAULT '{"favoriteCategories": [], "favoriteChannels": []}'::jsonb,
   is_active BOOLEAN DEFAULT true,
   paused_until TIMESTAMP WITH TIME ZONE,
   pause_reason TEXT,
+  stars INTEGER DEFAULT 0,
+  total_stars_earned INTEGER DEFAULT 0,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   CONSTRAINT unique_pin_per_parent UNIQUE(parent_id, pin_hash)
@@ -460,6 +462,7 @@ CREATE TABLE IF NOT EXISTS public.content_filters (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   child_id UUID UNIQUE NOT NULL REFERENCES public.children(id) ON DELETE CASCADE,
   blocked_keywords TEXT[] DEFAULT '{}',
+  blocked_categories TEXT[] DEFAULT '{}',
   allowed_categories TEXT[] DEFAULT '{}',
   max_video_duration_minutes INTEGER DEFAULT 15,
   allow_comments BOOLEAN DEFAULT false,
@@ -624,3 +627,35 @@ CREATE POLICY playlist_items_policy ON public.playlist_items
     )
   );
 
+
+-- 25. Gamification: Child Badges
+CREATE TABLE IF NOT EXISTS public.child_badges (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  child_id UUID NOT NULL REFERENCES public.children(id) ON DELETE CASCADE,
+  badge_id TEXT NOT NULL,
+  earned_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  metadata JSONB DEFAULT '{}'::jsonb,
+  UNIQUE(child_id, badge_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_child_badges_child_id ON public.child_badges(child_id);
+
+ALTER TABLE public.child_badges ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY child_badges_select_parent ON public.child_badges
+  FOR SELECT
+  TO authenticated
+  USING (
+    child_id IN (
+      SELECT id FROM public.children WHERE parent_id = (SELECT auth.uid())
+    )
+  );
+
+CREATE POLICY child_badges_insert_system ON public.child_badges
+  FOR INSERT
+  TO authenticated
+  WITH CHECK (
+    child_id IN (
+      SELECT id FROM public.children WHERE parent_id = (SELECT auth.uid())
+    )
+  );

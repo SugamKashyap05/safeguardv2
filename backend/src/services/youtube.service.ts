@@ -47,16 +47,25 @@ export class YouTubeService {
 
         this.checkQuota(100);
 
+        // 1. Refine Query for Safety
+        let refinedQuery = `${query} -shorts -#shorts`; // Exclude Shorts
+
+        // 2. Enforce Age Context
+        if (ageLevel === 'preschool' || ageLevel === 'early-elementary') {
+            refinedQuery += ' for kids';
+        }
+
         try {
             const response = await this.youtube.search.list({
                 part: ['snippet'],
-                q: query,
+                q: refinedQuery,
                 type: ['video'],
-                maxResults: maxResults, // Use query param
+                maxResults: maxResults,
                 safeSearch: 'strict',
                 videoEmbeddable: 'true',
                 relevanceLanguage: 'en',
-                regionCode: 'US'
+                regionCode: 'US',
+                // videoDuration: 'medium', // Optional: Enforce > 4 mins to avoid shorts? Too strict maybe.
             });
 
             this.incrementQuota(100);

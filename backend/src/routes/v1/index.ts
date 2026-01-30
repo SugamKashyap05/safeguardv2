@@ -32,6 +32,9 @@ import emergencyRouter from './emergency.routes';
 import playlistRouter from './playlist.routes';
 import approvalRouter from './approval.routes';
 import analyticsRouter from './analytics.routes';
+import gamificationRouter from './gamification.routes';
+import questRouter from './quest.routes';
+import shopRouter from './shop.routes';
 
 const router = Router();
 
@@ -59,5 +62,8 @@ router.use('/emergency', emergencyRouter);
 router.use('/playlists', playlistRouter);
 router.use('/approvals', approvalRouter);
 router.use('/analytics', analyticsRouter);
+router.use('/gamification', gamificationRouter);
+router.use('/quests', questRouter);
+router.use('/shop', shopRouter);
 
 export default router;

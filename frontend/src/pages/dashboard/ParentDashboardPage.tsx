@@ -6,7 +6,7 @@ import { ActivityFeed } from '../../components/dashboard/ActivityFeed';
 import { NotificationBell } from '../../components/dashboard/NotificationBell';
 // @ts-ignore
 import { ChildManagementPage } from './ChildManagementPage'; // We can reuse grid or just link to it
-import { PlusCircle, Shield, Settings, FileText, AlertOctagon, Inbox } from 'lucide-react';
+import { PlusCircle, Shield, Settings, FileText, AlertOctagon, Inbox, Play } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 export const ParentDashboardPage = () => {
@@ -15,6 +15,7 @@ export const ParentDashboardPage = () => {
     const [activity, setActivity] = useState<any>(null);
     const [loading, setLoading] = useState(true);
     const [pausingAll, setPausingAll] = useState(false);
+    const [resumingAll, setResumingAll] = useState(false);
     const [approvalCount, setApprovalCount] = useState(0);
 
     useEffect(() => {
@@ -47,14 +48,29 @@ export const ParentDashboardPage = () => {
     };
 
     const handlePauseAll = async () => {
+        if (!confirm('Are you sure you want to pause ALL devices?')) return;
         setPausingAll(true);
         try {
             await api.post('/emergency/panic-pause');
             alert('All children paused!');
+            fetchDashboardData();
         } catch (err) {
             console.error(err);
         } finally {
             setPausingAll(false);
+        }
+    };
+
+    const handleResumeAll = async () => {
+        setResumingAll(true);
+        try {
+            await api.post('/emergency/panic-resume');
+            alert('All children resumed!');
+            fetchDashboardData();
+        } catch (err) {
+            console.error(err);
+        } finally {
+            setResumingAll(false);
         }
     };
 
@@ -84,13 +100,25 @@ export const ParentDashboardPage = () => {
                             </span>
                         )}
                     </button>
-                    <button
-                        onClick={handlePauseAll}
-                        disabled={pausingAll}
-                        className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-xl text-sm font-medium hover:bg-red-700 disabled:opacity-50"
-                    >
-                        <AlertOctagon size={18} /> {pausingAll ? 'Pausing...' : 'Pause All'}
-                    </button>
+
+                    <div className="flex bg-gray-100 rounded-xl p-1">
+                        <button
+                            onClick={handlePauseAll}
+                            disabled={pausingAll}
+                            className="flex items-center gap-2 px-4 py-2 bg-red-100 text-red-700 hover:bg-red-200 rounded-lg text-sm font-medium disabled:opacity-50 transition-colors"
+                        >
+                            <AlertOctagon size={18} /> {pausingAll ? 'Pausing...' : 'Pause All'}
+                        </button>
+                        <div className="w-px bg-gray-300 mx-1"></div>
+                        <button
+                            onClick={handleResumeAll}
+                            disabled={resumingAll}
+                            className="flex items-center gap-2 px-4 py-2 bg-green-100 text-green-700 hover:bg-green-200 rounded-lg text-sm font-medium disabled:opacity-50 transition-colors"
+                        >
+                            <Play size={18} /> {resumingAll ? 'Resuming...' : 'Resume All'}
+                        </button>
+                    </div>
+
                     <button onClick={() => navigate('/parent/reports')} className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-xl text-sm font-medium text-gray-700 hover:bg-gray-50">
                         <FileText size={18} /> Reports
                     </button>

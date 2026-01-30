@@ -23,7 +23,7 @@ export interface Child {
     age: number; // 3-10
     avatar?: string;
     pin_hash: string;
-    age_appropriate_level: 'preschool' | 'early-elementary' | 'elementary';
+    age_appropriate_level: 'preschool' | 'early-elementary' | 'elementary' | 'tweens' | 'teens';
     preferences: {
         favoriteCategories: string[];
         favoriteChannels: string[];
@@ -33,4 +33,25 @@ export interface Child {
     pause_reason?: string;
     created_at: string;
     updated_at: string;
+    // Gamification
+    stars: number;
+    total_stars_earned: number;
+}
+
+export interface ChildBadge {
+    id: string;
+    child_id: string;
+    badge_id: string;
+    earned_at: string;
+    metadata?: Record<string, any>;
+}
+
+export interface BadgeDefinition {
+    id: string;
+    name: string;
+    description: string;
+    icon: string; // Emoji or URL
+    category: 'knowledge' | 'consistency' | 'completion' | 'special';
+    rarity: 'common' | 'rare' | 'epic' | 'legendary';
+    condition_description: string;
 }

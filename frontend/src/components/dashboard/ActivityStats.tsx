@@ -2,15 +2,28 @@ import React, { useEffect, useState } from 'react';
 import { api } from '../../services/api';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 
+interface CategoryData {
+    name: string;
+    value: number;
+    color: string;
+}
+
+interface StatsData {
+    totalMinutes: number;
+    videosWatched: number;
+    topCategories: CategoryData[];
+    // Add other fields as needed
+}
+
 export const ActivityStats = ({ childId }: { childId: string }) => {
-    const [stats, setStats] = useState<any>(null);
+    const [stats, setStats] = useState<StatsData | null>(null);
 
     useEffect(() => {
         const loadStats = async () => {
             if (!childId) return;
             try {
                 const res = await api.get(`/watch/history/${childId}/stats`);
-                setStats(res.data.data);
+                setStats(res.data.data); // Adjust if the API response structure is nested differently
             } catch (err) {
                 console.error(err);
             }
@@ -48,7 +61,7 @@ export const ActivityStats = ({ childId }: { childId: string }) => {
                             cursor={{ fill: 'transparent' }}
                             contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
                         />
-                        <Bar dataKey="count" radius={[4, 4, 0, 0]}>
+                        <Bar dataKey="value" radius={[4, 4, 0, 0]}> {/* Ensure 'value' is the correct key from API */}
                             {data.map((entry: any, index: number) => (
                                 <Cell key={`cell-${index}`} fill={colors[index % colors.length]} />
                             ))}
