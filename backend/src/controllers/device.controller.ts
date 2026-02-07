@@ -63,4 +63,12 @@ export class DeviceController {
         const session = await syncService.getActiveSession(childId);
         res.json({ status: 'success', data: session });
     }
+
+    static async togglePause(req: Request, res: Response) {
+        const { deviceId } = req.params;
+        const { childId, isPaused } = req.body;
+
+        const device = await deviceService.toggleDevicePause(childId, deviceId, isPaused);
+        res.json({ status: 'success', data: device });
+    }
 }

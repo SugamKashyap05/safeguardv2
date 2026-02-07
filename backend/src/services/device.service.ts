@@ -120,4 +120,21 @@ export class DeviceService {
         if (error) throw error;
         return data;
     }
+
+    // Pause/Resume specific device
+    async toggleDevicePause(childId: string, deviceId: string, isPaused: boolean) {
+        const { data, error } = await supabase
+            .from('devices')
+            .update({
+                is_paused: isPaused,
+                updated_at: new Date().toISOString()
+            })
+            .eq('id', deviceId)
+            .eq('child_id', childId)
+            .select()
+            .single();
+
+        if (error) throw error;
+        return data;
+    }
 }

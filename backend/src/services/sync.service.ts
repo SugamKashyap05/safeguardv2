@@ -1,18 +1,17 @@
-
-import { supabase } from '../config/supabase';
+import { supabaseAdmin } from '../config/supabase';
 
 export class SyncService {
 
     // Sync Progress
     async syncWatchProgress(childId: string, videoId: string, position: number, deviceId: string) {
-        const { error } = await supabase
+        const { error } = await supabaseAdmin
             .from('session_sync')
             .upsert({
                 child_id: childId,
                 video_id: videoId,
                 position: position,
                 device_id: deviceId, // The device reporting the status
-                start_at: new Date(),
+                started_at: new Date(),
                 last_synced_at: new Date()
             }, { onConflict: 'child_id' });
 
@@ -21,7 +20,7 @@ export class SyncService {
 
     // Get Active Session
     async getActiveSession(childId: string) {
-        const { data, error } = await supabase
+        const { data, error } = await supabaseAdmin
             .from('session_sync')
             .select('*')
             .eq('child_id', childId)

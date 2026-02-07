@@ -659,3 +659,99 @@ CREATE POLICY child_badges_insert_system ON public.child_badges
       SELECT id FROM public.children WHERE parent_id = (SELECT auth.uid())
     )
   );
+
+-- 26. Search History
+CREATE TABLE IF NOT EXISTS public.search_history (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  child_id UUID REFERENCES public.children(id) ON DELETE CASCADE,
+  query TEXT NOT NULL,
+  results_count INTEGER DEFAULT 0,
+  clicked_video_id TEXT,
+  is_voice_search BOOLEAN DEFAULT false,
+  is_flagged BOOLEAN DEFAULT false,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_search_history_child_id ON public.search_history(child_id);
+
+ALTER TABLE public.search_history ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY search_history_parent_policy ON public.search_history
+  FOR ALL
+  TO authenticated
+  USING (
+    child_id IN (
+      SELECT id FROM public.children WHERE parent_id = (SELECT auth.uid())
+    )
+  );
+
+-- 27. Daily Quests
+CREATE TABLE IF NOT EXISTS public.daily_quests (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  child_id UUID REFERENCES public.children(id) ON DELETE CASCADE,
+  date DATE DEFAULT CURRENT_DATE,
+  type TEXT NOT NULL,
+  target INTEGER NOT NULL,
+  progress INTEGER DEFAULT 0,
+  is_completed BOOLEAN DEFAULT false,
+  reward_stars INTEGER DEFAULT 5,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_daily_quests_child_id ON public.daily_quests(child_id);
+
+ALTER TABLE public.daily_quests ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY daily_quests_parent_policy ON public.daily_quests
+  FOR ALL
+  TO authenticated
+  USING (
+    child_id IN (
+      SELECT id FROM public.children WHERE parent_id = (SELECT auth.uid())
+    )
+  );
+
+-- 28. Child Inventory
+CREATE TABLE IF NOT EXISTS public.child_inventory (
+  child_id UUID NOT NULL REFERENCES public.children(id) ON DELETE CASCADE,
+  item_id TEXT NOT NULL,
+  item_type TEXT NOT NULL,
+  acquired_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  CONSTRAINT child_inventory_pkey PRIMARY KEY (child_id, item_id)
+);
+
+ALTER TABLE public.child_inventory ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY child_inventory_parent_policy ON public.child_inventory
+  FOR ALL
+  TO authenticated
+  USING (
+    child_id IN (
+      SELECT id FROM public.children WHERE parent_id = (SELECT auth.uid())
+    )
+  );
+
+-- 29. Child Notifications
+CREATE TABLE IF NOT EXISTS public.child_notifications (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  child_id UUID NOT NULL REFERENCES public.children(id) ON DELETE CASCADE,
+  type TEXT NOT NULL,
+  title TEXT,
+  message TEXT,
+  data JSONB,
+  is_read BOOLEAN DEFAULT false,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_child_notifications_child_id ON public.child_notifications(child_id);
+
+ALTER TABLE public.child_notifications ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY child_notifications_parent_policy ON public.child_notifications
+  FOR ALL
+  TO authenticated
+  USING (
+    child_id IN (
+      SELECT id FROM public.children WHERE parent_id = (SELECT auth.uid())
+    )
+  );

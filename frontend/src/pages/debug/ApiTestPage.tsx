@@ -22,11 +22,11 @@ const ApiTestPage = () => {
         { category: 'Parent', name: 'List Children', endpoint: '/children', status: 'pending' },
         { category: 'Parent', name: 'Dashboard Stats', endpoint: '/parents/dashboard/stats', status: 'pending' },
         { category: 'Parent', name: 'Dashboard Activity', endpoint: '/parents/dashboard/activity', status: 'pending' },
-        { category: 'Parent', name: 'Device List', endpoint: '/devices', status: 'pending' },
-        { category: 'Parent', name: 'Content Filters', endpoint: '/filters', status: 'pending' },
-        { category: 'Parent', name: 'Screen Time Settings', endpoint: '/screentime/settings', status: 'pending' },
+        { category: 'Parent', name: 'Device List', endpoint: '/devices/:id', status: 'pending' },
+        { category: 'Parent', name: 'Content Filters', endpoint: '/filters/:id', status: 'pending' },
+        { category: 'Parent', name: 'Screen Time Rules', endpoint: '/screentime/:id', status: 'pending' },
         { category: 'Parent', name: 'Notifications', endpoint: '/notifications', status: 'pending' },
-        { category: 'Parent', name: 'Weekly Reports', endpoint: '/reports/weekly', status: 'pending' },
+        { category: 'Parent', name: 'Latest Report', endpoint: '/reports/latest', status: 'pending' },
 
         // Child Scope
         { category: 'Child', name: 'Child Status', endpoint: '/children/:id/status', status: 'pending' },
@@ -68,7 +68,7 @@ const ApiTestPage = () => {
         setResults(prev => prev.map(r => ({ ...r, status: 'pending', message: '', latency: undefined })));
 
         const parentToken = localStorage.getItem('token');
-        const childToken = localStorage.getItem('safeguard_token');
+        const childToken = localStorage.getItem('safeguard_child_token');
         const activeChildId = localStorage.getItem('activeChildId');
 
         addLog(`Context: Parent=${!!parentToken}, Child=${!!childToken} (ID: ${activeChildId || 'None'})`);

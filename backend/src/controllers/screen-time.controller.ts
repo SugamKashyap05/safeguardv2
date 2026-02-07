@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { ScreenTimeService } from '../services/screen-time.service';
+import { socketService } from '../services/websocket.service';
 import { ApiResponse } from '../utils/response';
 
 const service = new ScreenTimeService();
@@ -17,14 +18,20 @@ export class ScreenTimeController {
     static async updateRules(req: Request, res: Response) {
         const { childId } = req.params;
         await service.updateRules(childId, req.body);
+
+        // Emit realtime update
+        console.log(`📡 Emitting settings:updated to child_${childId}`);
+        socketService.emitToChild(childId, 'settings:updated', {});
+        socketService.emitToChild(childId, 'limits:updated', {}); // Legacy support
+
         return ApiResponse.success(res, null, 'Screen time rules updated');
     }
 
     // Get Remaining Time
     static async getRemaining(req: Request, res: Response) {
         const { childId } = req.params;
-        const minutes = await service.checkTimeRemaining(childId);
-        return ApiResponse.success(res, { minutes });
+        const stats = await service.getDetailedStatus(childId);
+        return ApiResponse.success(res, { minutes: stats.remaining, ...stats });
     }
 
     // Extend Time
@@ -32,6 +39,11 @@ export class ScreenTimeController {
         const { childId } = req.params;
         const { minutes } = req.body; // Default 15 if not passed?
         await service.grantExtraTime(childId, minutes || 15);
+
+        // Realtime update
+        console.log(`📡 Emitting settings:updated (extendTime) to child_${childId}`);
+        socketService.emitToChild(childId, 'settings:updated', {});
+
         return ApiResponse.success(res, null, `Added ${minutes || 15} minutes`);
     }
 
@@ -39,6 +51,10 @@ export class ScreenTimeController {
     static async pause(req: Request, res: Response) {
         const { childId } = req.params;
         await service.setPauseStatus(childId, true);
+
+        // Realtime update
+        socketService.emitToChild(childId, 'settings:updated', {});
+
         return ApiResponse.success(res, null, 'Child access paused');
     }
 
@@ -46,6 +62,10 @@ export class ScreenTimeController {
     static async resume(req: Request, res: Response) {
         const { childId } = req.params;
         await service.setPauseStatus(childId, false);
+
+        // Realtime update
+        socketService.emitToChild(childId, 'settings:updated', {});
+
         return ApiResponse.success(res, null, 'Child access resumed');
     }
 }

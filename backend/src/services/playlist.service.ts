@@ -386,42 +386,59 @@ export class PlaylistService {
     /**
      * Get Curated Discovery Playlists
      */
-    static async getDiscoveryPlaylists() {
-        return {
+    /**
+     * Get Curated Discovery Playlists
+     */
+    static async getDiscoveryPlaylists(childId?: string) {
+        // 1. Get child's existing playlists to exclude them
+        const existingIds = new Set<string>();
+        if (childId) {
+            const { data: playlists } = await supabaseAdmin
+                .from('playlists')
+                .select('name')
+                .eq('child_id', childId);
+
+            playlists?.forEach(p => existingIds.add(p.name));
+        }
+
+        const allPlaylists = {
             education: [
-                {
-                    id: 'PL8dPuuaLjXtN0ge77e6y8l5G2lzXwYI_p',
-                    title: 'Crash Course Kids',
-                    description: 'Science for kids',
-                    thumbnail: 'https://i.ytimg.com/vi/k0XH6l4a3I8/hqdefault.jpg',
-                    item_count: 50
-                },
-                {
-                    id: 'PL139F241EBC37D97F',
-                    title: 'Story Time',
-                    description: 'Read aloud books for children',
-                    thumbnail: 'https://i.ytimg.com/vi/1_I-wK5vB3E/hqdefault.jpg',
-                    item_count: 25
-                },
+                { id: 'PL8dPuuaLjXtN0ge77e6y8l5G2lzXwYI_p', title: 'Crash Course Kids', description: 'Science for kids', thumbnail: 'https://i.ytimg.com/vi/k0XH6l4a3I8/hqdefault.jpg', item_count: 50 },
+                { id: 'PL139F241EBC37D97F', title: 'Story Time', description: 'Read aloud books', thumbnail: 'https://i.ytimg.com/vi/1_I-wK5vB3E/hqdefault.jpg', item_count: 25 },
+                { id: 'PLJicmE8fK0EiK1', title: 'National Geographic Kids', description: 'Explore the world', thumbnail: 'https://i.ytimg.com/vi/Xj1nN8c1', item_count: 42 },
+                { id: 'PLexample1', title: 'Math Antics', description: 'Basic Math fun', thumbnail: 'https://i.ytimg.com/vi/math', item_count: 30 },
+                { id: 'PLexample2', title: 'Khan Academy Kids', description: 'Early learning', thumbnail: 'https://i.ytimg.com/vi/khan', item_count: 60 },
+                { id: 'PLexample9', title: 'Simple Science', description: 'Easy experiments', thumbnail: 'https://i.ytimg.com/vi/science', item_count: 15 },
             ],
             music: [
-                {
-                    id: 'PLdkj6XH8GYPRl_mM2rN7K9eM8s0G5D-xX',
-                    title: 'Disney Sing-Alongs',
-                    description: 'Favorite Disney songs',
-                    thumbnail: 'https://i.ytimg.com/vi/L0MK7qz13bU/hqdefault.jpg',
-                    item_count: 40
-                },
+                { id: 'PLdkj6XH8GYPRl_mM2rN7K9eM8s0G5D-xX', title: 'Disney Sing-Alongs', description: 'Favorite Disney songs', thumbnail: 'https://i.ytimg.com/vi/L0MK7qz13bU/hqdefault.jpg', item_count: 40 },
+                { id: 'PLexample3', title: 'LooLoo Kids', description: 'Nursery Rhymes', thumbnail: 'https://i.ytimg.com/vi/looloo', item_count: 100 },
+                { id: 'PLexample4', title: 'Super Simple Songs', description: 'Kids songs', thumbnail: 'https://i.ytimg.com/vi/super', item_count: 80 },
+                { id: 'PLexample10', title: 'Classical for Kids', description: 'Relaxing music', thumbnail: 'https://i.ytimg.com/vi/mozart', item_count: 20 },
             ],
             science: [
-                {
-                    id: 'PLQlnTldJs0ZQq-C-lsnACLUn_7M8QfJ_x',
-                    title: 'Nat Geo Kids',
-                    description: 'Animals and nature',
-                    thumbnail: 'https://i.ytimg.com/vi/DefLknjRjV0/hqdefault.jpg',
-                    item_count: 30
-                }
+                { id: 'PLQlnTldJs0ZQq-C-lsnACLUn_7M8QfJ_x', title: 'Nat Geo Kids', description: 'Animals and nature', thumbnail: 'https://i.ytimg.com/vi/DefLknjRjV0/hqdefault.jpg', item_count: 30 },
+                { id: 'PLexample5', title: 'Peekaboo Kidz', description: 'Dr. Binocs Show', thumbnail: 'https://i.ytimg.com/vi/binocs', item_count: 150 },
+                { id: 'PLexample6', title: 'SciShow Kids', description: 'Why and How', thumbnail: 'https://i.ytimg.com/vi/scishow', item_count: 90 },
+                { id: 'PLexample11', title: 'Space Corner', description: 'All about space', thumbnail: 'https://i.ytimg.com/vi/space', item_count: 12 },
+            ],
+            arts: [
+                { id: 'PLexample7', title: 'Art for Kids Hub', description: 'Drawing lessons', thumbnail: 'https://i.ytimg.com/vi/arts', item_count: 200 },
+                { id: 'PLexample8', title: 'Muffalo Potato', description: 'Draw with letters', thumbnail: 'https://i.ytimg.com/vi/muffalo', item_count: 45 },
+            ],
+            animals: [
+                { id: 'PLexample12', title: 'The Dodo Kids', description: 'Rescued animals', thumbnail: 'https://i.ytimg.com/vi/dodo', item_count: 88 },
+                { id: 'PLexample13', title: 'Brave Wilderness', description: 'Wild encounters', thumbnail: 'https://i.ytimg.com/vi/brave', item_count: 55 },
             ]
         };
+
+        // Filter out already added playlists
+        // We compare existing Playlist Names to the Discovery Title
+        const filtered: any = {};
+        for (const [category, list] of Object.entries(allPlaylists)) {
+            filtered[category] = list.filter(p => !existingIds.has(p.title));
+        }
+
+        return filtered;
     }
 }

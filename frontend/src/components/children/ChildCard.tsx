@@ -2,6 +2,7 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import { Edit2, Pause, Play, Clock, Tablet, Activity, Settings, Youtube, ListMusic } from 'lucide-react';
 import clsx from 'clsx';
+import { useSocket } from '../../contexts/SocketContext';
 
 interface ChildCardProps {
     child: any;
@@ -24,10 +25,31 @@ export const ChildCard: React.FC<ChildCardProps> = ({
 }) => {
     const isPaused = !child.is_active || (child.paused_until && new Date(child.paused_until) > new Date());
 
-    // Mock usage data for now
-    const watchTime = Math.floor(Math.random() * 120);
-    const limit = child.daily_screen_time_limit || 60;
-    const usagePercent = Math.min((watchTime / limit) * 100, 100);
+    // Use real usage data (with fallback)
+    // Local state to support realtime updates
+    const { socket } = useSocket() || {};
+    const [usage, setUsage] = React.useState(child.rules?.today_usage_minutes || 0);
+    const limit = child.rules?.daily_limit_minutes || child.daily_screen_time_limit || 60;
+    const usagePercent = Math.min((usage / limit) * 100, 100);
+
+    React.useEffect(() => {
+        setUsage(child.rules?.today_usage_minutes || 0);
+    }, [child.rules?.today_usage_minutes]);
+
+    React.useEffect(() => {
+        if (!socket) return;
+
+        const handleUpdate = (data: any) => {
+            if (data.childId === child.id && data.todayUsage !== undefined) {
+                setUsage(data.todayUsage);
+            }
+        };
+
+        socket.on('usage:updated', handleUpdate);
+        return () => {
+            socket.off('usage:updated', handleUpdate);
+        };
+    }, [socket, child.id]);
 
     return (
         <motion.div
@@ -83,7 +105,12 @@ export const ChildCard: React.FC<ChildCardProps> = ({
             <div className="mt-auto">
                 <div className="flex justify-between text-xs font-bold text-gray-500 mb-1">
                     <span className="flex items-center gap-1"><Clock size={12} /> Today</span>
-                    <span>{watchTime} / {limit}m</span>
+                    <span>
+                        <span className={clsx("mr-1", limit - usage < 10 ? "text-red-500" : "text-green-600")}>
+                            {Math.max(0, limit - usage)}m Left
+                        </span>
+                        <span className="text-gray-300">|</span> {usage}m Used
+                    </span>
                 </div>
                 <div className="h-3 bg-gray-100 rounded-full overflow-hidden">
                     <motion.div

@@ -81,7 +81,8 @@ export class PlaylistController {
     }
 
     static async discover(req: Request, res: Response) {
-        const result = await PlaylistService.getDiscoveryPlaylists();
+        const childId = req.query.childId as string;
+        const result = await PlaylistService.getDiscoveryPlaylists(childId);
         res.json({ success: true, data: result });
     }
 }

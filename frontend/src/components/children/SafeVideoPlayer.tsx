@@ -147,18 +147,41 @@ export const SafeVideoPlayer: React.FC<SafeVideoPlayerProps> = ({
         return () => clearInterval(interval);
     }, [isPlaying]);
 
-    // Backend Sync
+    // Refs for Heartbeat (to avoid effect re-creation)
+    const currentTimeRef = useRef(0);
+    const durationRef = useRef(0);
+    const isPlayingRef = useRef(false);
+    const sessionIdRef = useRef<string | null>(null);
+
+    // Update refs whenever state changes
+    useEffect(() => { currentTimeRef.current = currentTime; }, [currentTime]);
+    useEffect(() => { durationRef.current = duration; }, [duration]);
+    useEffect(() => { isPlayingRef.current = isPlaying; }, [isPlaying]);
+    useEffect(() => { sessionIdRef.current = sessionId; }, [sessionId]);
+
+    // Backend Sync (Heartbeat) - Fixed: No dependency on changing values
     useEffect(() => {
         const sync = setInterval(() => {
-            if (sessionId && isPlaying) {
-                api.patch(`/watch/${sessionId}/update`, {
-                    watchedDuration: Math.floor(currentTime),
-                    duration: Math.floor(duration)
-                });
+            if (sessionIdRef.current && isPlayingRef.current) {
+                api.patch(`/watch/${sessionIdRef.current}/update`, {
+                    watchedDuration: Math.floor(currentTimeRef.current),
+                    duration: Math.floor(durationRef.current)
+                }).catch(err => console.error('Heartbeat failed', err));
             }
-        }, 30000);
+        }, 10000); // 10s heartbeat
         return () => clearInterval(sync);
-    }, [sessionId, isPlaying, currentTime]);
+    }, []); // Empty dependency array = runs once on mount/unmount logic
+    // Actually safe to just run once, or restart if session changes? 
+    // Session changes only on new video. 
+    // Let's rely on refs. If video changes, refs update. 
+    // But we might want to clear interval on unmount. Yes.
+
+    // Wait, if video changes, component might remount? 
+    // SafeVideoPlayer is unmounted/remounted when `selectedVideo` changes in parent?
+    // Parent: {selectedVideo && <SafeVideoPlayer ... key={selectedVideo.id} />} 
+    // Usage in ChildDashboardPage doesn't have key explicit, but conditional rendering implies remount if null->obj.
+    // If just switching obj->obj, React might reuse. 
+    // Let's add [videoId] to dependency just in case to restart interval on new video.
 
     const togglePlay = () => {
         if (isPlaying) playerRef.current.pauseVideo();

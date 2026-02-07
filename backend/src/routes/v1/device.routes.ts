@@ -9,6 +9,7 @@ const router = Router();
 // Parent Routes
 router.get('/:childId', requireParent, asyncWrapper(DeviceController.list));
 router.delete('/:deviceId', requireParent, asyncWrapper(DeviceController.remove));
+router.post('/:deviceId/pause', requireParent, asyncWrapper(DeviceController.togglePause));
 
 // Child Routes
 router.post('/:childId/register', requireChild, asyncWrapper(DeviceController.register));

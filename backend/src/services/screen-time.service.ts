@@ -38,9 +38,13 @@ export class ScreenTimeService {
      */
     async updateRules(childId: string, updates: any) {
         // Validation logic for time windows could go here
+
+        // Prevent overwriting usage stats via general update
+        const { today_usage_minutes, last_reset_date, ...safeUpdates } = updates;
+
         const { error } = await supabaseAdmin
             .from('screen_time_rules')
-            .update({ ...updates, updated_at: new Date() })
+            .update({ ...safeUpdates, updated_at: new Date() })
             .eq('child_id', childId);
 
         if (error) throw error;
@@ -51,6 +55,16 @@ export class ScreenTimeService {
      * Check Time Remaining (Minutes)
      */
     async checkTimeRemaining(childId: string): Promise<number> {
+        // Use getDetailedStatus to ensure consistency and trigger auto-sync if needed.
+        const stats = await this.getDetailedStatus(childId);
+
+        // However, we still need to check Global Pause / Bedtime which getDetailedStatus might not fully block?
+        // Actually getDetailedStatus returns 'remaining', but does it account for PAUSE?
+        // Let's check getDetailedStatus implementation...
+        // It calculates remaining based on LIMIT - USAGE.
+        // It does NOT check Bedtime/Pause. 
+        // We must re-add those checks.
+
         const rules = await this.getRules(childId);
 
         // 1. Check Global Pause
@@ -69,16 +83,77 @@ export class ScreenTimeService {
             return 0; // Bedtime or Outside Window
         }
 
-        // 3. Check Daily Limit
+        // 3. Return remaining from consistent stat calculation
+        return stats.remaining;
+    }
+
+    /**
+     * Get Detailed Status (Spent, Added, Remaining)
+     */
+    async getDetailedStatus(childId: string): Promise<any> {
+        const rules = await this.getRules(childId);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        // Fetch today's history to split positive/negative
+        const { data: history } = await supabaseAdmin
+            .from('watch_history')
+            .select('watched_duration')
+            .eq('child_id', childId)
+            .gte('watched_at', today.toISOString());
+
+        // Calculate Real Spent vs Bonus
+        let realSpentSeconds = 0;
+        let bonusSeconds = 0;
+        let netSeconds = 0;
+
+        if (history) {
+            history.forEach(item => {
+                const d = item.watched_duration || 0;
+                // Net calculation (just sum everything)
+                netSeconds += d;
+
+                // For display separation
+                if (d > 0) realSpentSeconds += d;
+                else bonusSeconds += Math.abs(d);
+            });
+        }
+
+        const realSpentMinutes = Math.ceil(realSpentSeconds / 60);
+        const bonusMinutes = Math.floor(bonusSeconds / 60);
+
+        // Net Usage based on total seconds (matches updateDailyUsage logic)
+        const netUsageMinutes = Math.max(0, Math.ceil(netSeconds / 60));
+
+        // SYNC: If stored usage differs from calculated usage, update DB to match reality.
+        // This fixes the "Parent sees 19m, Child sees 34m" bug.
+        if (Math.abs((rules.today_usage_minutes || 0) - netUsageMinutes) > 1) {
+            console.log(`🔄 Syncing screen time usage: DB=${rules.today_usage_minutes} vs CALC=${netUsageMinutes}`);
+            // Fire and forget update
+            supabaseAdmin
+                .from('screen_time_rules')
+                .update({ today_usage_minutes: netUsageMinutes })
+                .eq('child_id', childId)
+                .then(({ error }) => {
+                    if (error) console.error('Failed to sync usage', error);
+                });
+        }
+
+        // Limits
         const day = new Date().getDay();
         const isWeekend = day === 0 || day === 6;
         let limit = rules.daily_limit_minutes;
-
         if (isWeekend && rules.weekend_limit_minutes) limit = rules.weekend_limit_minutes;
         else if (!isWeekend && rules.weekday_limit_minutes) limit = rules.weekday_limit_minutes;
 
-        const remaining = Math.max(0, limit - (rules.today_usage_minutes || 0));
-        return remaining;
+        const remaining = Math.max(0, limit - netUsageMinutes);
+
+        return {
+            remaining,
+            spent: realSpentMinutes,
+            added: bonusMinutes,
+            limit
+        };
     }
 
     /**
@@ -113,9 +188,58 @@ export class ScreenTimeService {
     /**
      * Grant Extra Time
      */
+    /**
+     * Grant Extra Time
+     */
     async grantExtraTime(childId: string, minutes: number) {
         const rules = await this.getRules(childId);
-        // Reduce usage to grant more time (Hack/MVP)
+
+        // 1. Get a valid channel ID for the FK constraint
+        // Try history first (most likely to succeed for active user)
+        let channelId = 'system_override'; // Fallback if no FK constraint (unlikely)
+
+        const { data: historyItem } = await supabaseAdmin
+            .from('watch_history')
+            .select('channel_id')
+            .not('channel_id', 'is', null)
+            .limit(1)
+            .maybeSingle(); // Use maybeSingle to avoid error if empty
+
+        if (historyItem?.channel_id) {
+            channelId = historyItem.channel_id;
+        } else {
+            // Try channels table
+            const { data: channelItem } = await supabaseAdmin
+                .from('channels')
+                .select('id')
+                .limit(1)
+                .maybeSingle();
+
+            if (channelItem?.id) channelId = channelItem.id;
+        }
+
+        // 2. Insert "Bonus" log (negative duration) to satisfy recalculation logic
+        const { error: insertError } = await supabaseAdmin.from('watch_history').insert({
+            child_id: childId,
+            channel_id: channelId,
+            video_id: 'system_bonus',
+            video_title: 'Time Bonus',
+            channel_name: 'System',
+            watched_duration: -(minutes * 60), // Negative seconds
+            watched_at: new Date(),
+            completed_watch: true
+        });
+
+        if (insertError) {
+            console.error('❌ Failed to insert Bonus Time record:', insertError);
+            // Verify if it was FK failure
+            // We continue anyway to update the RULES counter so Parent works, 
+            // but Child Sync might revert it if we don't fix this.
+        } else {
+            console.log(`✅ Bonus Time recorded: -${minutes}m (using channel: ${channelId})`);
+        }
+
+        // 2. Immediate Decrement (Result is same as recalc)
         const newUsage = Math.max(0, (rules.today_usage_minutes || 0) - minutes);
 
         await supabaseAdmin

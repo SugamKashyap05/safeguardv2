@@ -11,9 +11,16 @@ export const api = axios.create({
 
 // Add interceptor for token
 api.interceptors.request.use((config) => {
-    const token = localStorage.getItem('safeguard_token');
+    // Determine which token to use based on the current page context
+    const isChildSection = window.location.pathname.startsWith('/child');
+    // Login page needs Parent Token to list children
+    const isChildLogin = window.location.pathname.startsWith('/child/login');
+
+    const token = (isChildSection && !isChildLogin)
+        ? localStorage.getItem('safeguard_child_token')
+        : localStorage.getItem('safeguard_token');
+
     if (token) {
-        // console.log('Attaching token:', token);
         config.headers.Authorization = `Bearer ${token}`;
     }
     return config;

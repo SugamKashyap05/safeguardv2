@@ -1,6 +1,6 @@
 
 // @ts-ignore
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, Outlet } from 'react-router-dom';
 import { SignupWizard as SignupPage } from './pages/onboarding/SignupPage';
 import { ChildLoginPage } from './pages/auth/ChildLoginPage';
 import ApiTestPage from './pages/debug/ApiTestPage';
@@ -9,6 +9,7 @@ import { ChildDashboardPage } from './pages/dashboard/ChildDashboardPage';
 import { ParentDashboardPage } from './pages/dashboard/ParentDashboardPage';
 import { ChildManagementPage } from './pages/dashboard/ChildManagementPage';
 import { ChannelManagementPage } from './pages/dashboard/ChannelManagementPage';
+import { PlaylistManagementPage } from './pages/dashboard/PlaylistManagementPage';
 import { NotificationCenterPage } from './pages/dashboard/NotificationCenterPage';
 // @ts-ignore
 import { ParentActivityPage } from './pages/dashboard/ParentActivityPage';
@@ -31,12 +32,13 @@ import { GamificationProvider } from './contexts/GamificationContext';
 // ... (imports)
 
 // Wrapper for Child Dashboard to provide socket
-const ChildDashboardWrapper = () => {
-    const token = localStorage.getItem('safeguard_token') || undefined;
+// Shared Layout for authenticated child routes
+const ChildLayout = () => {
+    const token = localStorage.getItem('safeguard_child_token') || undefined;
     return (
         <SocketProvider token={token} role="child">
             <GamificationProvider>
-                <ChildDashboardPage />
+                <Outlet />
             </GamificationProvider>
         </SocketProvider>
     );
@@ -56,15 +58,19 @@ function App() {
                     <Route path="/login" element={<ParentLoginPage />} />
 
                     {/* Child Routes */}
+                    {/* Child Routes */}
                     <Route path="/child/login" element={<ChildLoginPage />} />
-                    <Route path="/child/dashboard" element={<ChildDashboardWrapper />} />
-                    <Route path="/child/playlists" element={<PlaylistsPage />} />
-                    <Route path="/child/playlists/:id" element={<PlaylistDetailPage />} />
-                    <Route path="/child/playlists/:id" element={<PlaylistDetailPage />} />
-                    <Route path="/child/requests" element={<MyRequestsPage />} />
-                    <Route path="/child/quests" element={<QuestsPage />} />
-                    <Route path="/child/shop" element={<ShopPage />} />
-                    <Route path="/child/achievements" element={<AchievementsPage />} />
+
+                    {/* Authenticated Child Routes */}
+                    <Route element={<ChildLayout />}>
+                        <Route path="/child/dashboard" element={<ChildDashboardPage />} />
+                        <Route path="/child/playlists" element={<PlaylistsPage />} />
+                        <Route path="/child/playlists/:id" element={<PlaylistDetailPage />} />
+                        <Route path="/child/requests" element={<MyRequestsPage />} />
+                        <Route path="/child/quests" element={<QuestsPage />} />
+                        <Route path="/child/shop" element={<ShopPage />} />
+                        <Route path="/child/achievements" element={<AchievementsPage />} />
+                    </Route>
 
                     {/* Parent Routes */}
                     <Route path="/parent/dashboard" element={<ParentDashboardPage />} />
@@ -73,6 +79,7 @@ function App() {
                     <Route path="/parent/child/:childId/playlists/:id" element={<PlaylistDetailPage />} />
                     <Route path="/parent/child/:childId/manage" element={<ManageChildPage />} />
                     <Route path="/parent/channels/:childId" element={<ChannelManagementPage />} />
+                    <Route path="/parent/playlists/:childId" element={<PlaylistManagementPage />} />
                     <Route path="/parent/notifications" element={<NotificationCenterPage />} />
                     <Route path="/parent/settings" element={<ParentSettingsPage />} />
                     <Route path="/parent/reports" element={<ReportsPage />} />

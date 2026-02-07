@@ -20,7 +20,16 @@ export const ChildManagementPage = () => {
         try {
             const res = await ChildService.getAll();
             if (res.success) {
-                setChildren(res.data);
+                // Fetch rules for each child to get usage stats
+                const childrenWithRules = await Promise.all(res.data.map(async (child: any) => {
+                    try {
+                        const rules = await import('../../services/child-controls.service').then(m => m.ChildControlsService.getScreenTimeRules(child.id));
+                        return { ...child, rules };
+                    } catch (e) {
+                        return child;
+                    }
+                }));
+                setChildren(childrenWithRules);
             }
         } catch (err) {
             console.error(err);
@@ -55,10 +64,10 @@ export const ChildManagementPage = () => {
                         child={child}
                         onEdit={(c) => navigate(`/parent/child/${c.id}/manage`)}
                         onTogglePause={(c) => console.log('Pause', c)}
-                        onViewActivity={(id) => console.log('Activity', id)}
+                        onViewActivity={(id) => navigate(`/parent/activity/${id}`)}
                         onManageChannels={(id) => navigate(`/parent/channels/${id}`)}
                         onManageDevices={(c) => setManagingChild(c)}
-                        onManagePlaylists={(c) => navigate(`/parent/child/${c.id}/playlists`)}
+                        onManagePlaylists={(c) => navigate(`/parent/playlists/${c.id}`)}
                     />
                 ))}
 

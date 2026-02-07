@@ -387,7 +387,10 @@ export const ChildDashboardPage = () => {
             </AnimatePresence>
 
             {/* Timer Overlay */}
-            <ChildTimer childId={childId} />
+            <ChildTimer
+                childId={childId}
+                onTimeExpire={() => setSelectedVideo(null)}
+            />
 
             {/* Header */}
             <header className="sticky top-0 bg-white/80 backdrop-blur-md z-30 px-6 py-4 shadow-sm flex items-center justify-between">

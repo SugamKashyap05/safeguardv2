@@ -142,7 +142,7 @@ export class GamificationService {
     /**
      * Internal: Check and award star-related badges
      */
-    private async checkStarBadges(childId: string, currentTotalStars: number) {
+    public async checkStarBadges(childId: string, currentTotalStars: number) {
         const badgesToAward: string[] = [];
 
         if (currentTotalStars >= 1) badgesToAward.push('first_star');
