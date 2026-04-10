@@ -7,10 +7,16 @@ import { X } from 'lucide-react';
 import { ChildService } from '../../services/auth.service';
 import clsx from 'clsx';
 
+const WEAK_SEQUENCES = ['0123','1234','2345','3456','4567','5678','6789','9876','8765','7654','6543','5432','4321','3210'];
+
 const schema = z.object({
     name: z.string().min(1, "Name is required"),
     age: z.coerce.number().min(3).max(10),
-    pin: z.string().regex(/^\d{4}$/, "PIN must be 4 digits"),
+    pin: z.string()
+        .regex(/^\d{4}$/, "PIN must be 4 digits")
+        .refine(val => !/^(\d)\1+$/.test(val), "PIN cannot be all repeated digits (e.g. 1111)")
+        .refine(val => !WEAK_SEQUENCES.includes(val), "PIN cannot be a simple sequence (e.g. 1234)")
+        .refine(val => val.substring(0, 2) !== val.substring(2, 4), "PIN cannot be a repetitive pattern (e.g. 1212)"),
     avatar: z.string().min(1)
 });
 

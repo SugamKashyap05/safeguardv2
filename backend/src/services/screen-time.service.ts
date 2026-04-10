@@ -27,7 +27,21 @@ export class ScreenTimeService {
                 .insert({ child_id: childId })
                 .select()
                 .single();
-            if (error) throw error;
+
+            if (error) {
+                // Handle race condition: if rules were created concurrently
+                if (error.code === '23505') {
+                    const { data: existingRules, error: fetchError } = await supabaseAdmin
+                        .from('screen_time_rules')
+                        .select('*')
+                        .eq('child_id', childId)
+                        .single();
+
+                    if (fetchError) throw fetchError;
+                    return existingRules;
+                }
+                throw error;
+            }
             return newRules;
         }
         return rules;
