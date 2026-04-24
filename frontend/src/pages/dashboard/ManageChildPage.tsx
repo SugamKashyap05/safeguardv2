@@ -32,7 +32,9 @@ export const ManageChildPage = () => {
             setChild(childData);
             setRules(rulesData);
             setFilters(filtersData);
-            setIsPaused(childData.paused_until && new Date(childData.paused_until) > new Date());
+            const active = childData.isActive !== undefined ? childData.isActive : childData.is_active;
+            const pausedUntil = childData.pausedUntil || childData.paused_until;
+            setIsPaused(active === false || (pausedUntil && new Date(pausedUntil) > new Date()));
         } catch (err) {
             console.error('Failed to load data', err);
             setMessage({ type: 'error', text: 'Failed to load child data' });
@@ -153,13 +155,13 @@ export const ManageChildPage = () => {
                         <div className="flex justify-between items-center mb-2">
                             <span className="font-medium text-gray-700">Today's Usage</span>
                             <span className="font-bold text-indigo-600">
-                                {rules?.today_usage_minutes || 0} / {rules?.daily_limit_minutes || 60} min
+                                {rules?.todayUsageMinutes || 0} / {rules?.dailyLimitMinutes || 60} min
                             </span>
                         </div>
                         <div className="w-full bg-gray-200 rounded-full h-3">
                             <div
                                 className="bg-gradient-to-r from-indigo-500 to-purple-500 h-3 rounded-full transition-all"
-                                style={{ width: `${Math.min(100, ((rules?.today_usage_minutes || 0) / (rules?.daily_limit_minutes || 60)) * 100)}%` }}
+                                style={{ width: `${Math.min(100, ((rules?.todayUsageMinutes || 0) / (rules?.dailyLimitMinutes || 60)) * 100)}%` }}
                             />
                         </div>
                         <div className="flex gap-2 mt-4">
@@ -182,8 +184,8 @@ export const ManageChildPage = () => {
                             <div className="flex items-center">
                                 <input
                                     type="number"
-                                    value={rules?.daily_limit_minutes || 60}
-                                    onChange={(e) => setRules(r => r ? { ...r, daily_limit_minutes: parseInt(e.target.value) || 60 } : null)}
+                                    value={rules?.dailyLimitMinutes || 60}
+                                    onChange={(e) => setRules(r => r ? { ...r, dailyLimitMinutes: parseInt(e.target.value) || 60 } : null)}
                                     className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400 outline-none"
                                 />
                                 <span className="ml-2 text-gray-500">min</span>
@@ -194,8 +196,8 @@ export const ManageChildPage = () => {
                             <div className="flex items-center">
                                 <input
                                     type="number"
-                                    value={rules?.weekday_limit_minutes || ''}
-                                    onChange={(e) => setRules(r => r ? { ...r, weekday_limit_minutes: parseInt(e.target.value) || undefined } : null)}
+                                    value={rules?.weekdayLimitMinutes || ''}
+                                    onChange={(e) => setRules(r => r ? { ...r, weekdayLimitMinutes: parseInt(e.target.value) || undefined } : null)}
                                     placeholder="Same as daily"
                                     className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400 outline-none"
                                 />
@@ -207,8 +209,8 @@ export const ManageChildPage = () => {
                             <div className="flex items-center">
                                 <input
                                     type="number"
-                                    value={rules?.weekend_limit_minutes || ''}
-                                    onChange={(e) => setRules(r => r ? { ...r, weekend_limit_minutes: parseInt(e.target.value) || undefined } : null)}
+                                    value={rules?.weekendLimitMinutes || ''}
+                                    onChange={(e) => setRules(r => r ? { ...r, weekendLimitMinutes: parseInt(e.target.value) || undefined } : null)}
                                     placeholder="Same as daily"
                                     className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400 outline-none"
                                 />
@@ -233,30 +235,30 @@ export const ManageChildPage = () => {
                         <button
                             onClick={() => setRules(r => r ? {
                                 ...r,
-                                bedtime_mode: { ...r.bedtime_mode, enabled: !r.bedtime_mode.enabled }
+                                bedtimeMode: { ...r.bedtimeMode, enabled: !r.bedtimeMode.enabled }
                             } : null)}
                             className={clsx(
                                 "w-14 h-8 rounded-full transition-colors relative",
-                                rules?.bedtime_mode?.enabled ? "bg-purple-600" : "bg-gray-300"
+                                rules?.bedtimeMode?.enabled ? "bg-purple-600" : "bg-gray-300"
                             )}
                         >
                             <span className={clsx(
                                 "absolute top-1 w-6 h-6 bg-white rounded-full shadow transition-transform",
-                                rules?.bedtime_mode?.enabled ? "right-1" : "left-1"
+                                rules?.bedtimeMode?.enabled ? "right-1" : "left-1"
                             )} />
                         </button>
                     </div>
 
-                    {rules?.bedtime_mode?.enabled && (
+                    {rules?.bedtimeMode?.enabled && (
                         <div className="grid grid-cols-2 gap-4">
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-1">Bedtime Starts</label>
                                 <input
                                     type="time"
-                                    value={rules?.bedtime_mode?.startTime || '20:00'}
+                                    value={rules?.bedtimeMode?.startTime || '20:00'}
                                     onChange={(e) => setRules(r => r ? {
                                         ...r,
-                                        bedtime_mode: { ...r.bedtime_mode, startTime: e.target.value }
+                                        bedtimeMode: { ...r.bedtimeMode, startTime: e.target.value }
                                     } : null)}
                                     className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-200 focus:border-purple-400 outline-none"
                                 />
@@ -265,10 +267,10 @@ export const ManageChildPage = () => {
                                 <label className="block text-sm font-medium text-gray-700 mb-1">Bedtime Ends</label>
                                 <input
                                     type="time"
-                                    value={rules?.bedtime_mode?.endTime || '07:00'}
+                                    value={rules?.bedtimeMode?.endTime || '07:00'}
                                     onChange={(e) => setRules(r => r ? {
                                         ...r,
-                                        bedtime_mode: { ...r.bedtime_mode, endTime: e.target.value }
+                                        bedtimeMode: { ...r.bedtimeMode, endTime: e.target.value }
                                     } : null)}
                                     className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-200 focus:border-purple-400 outline-none"
                                 />
@@ -290,25 +292,24 @@ export const ManageChildPage = () => {
                             </div>
                         </div>
                         <button
-                            onClick={() => setRules(r => r ? { ...r, break_reminder_enabled: !r.break_reminder_enabled } : null)}
+                            onClick={() => setRules(r => r ? { ...r, breakReminderEnabled: !r.breakReminderEnabled } : null)}
                             className={clsx(
                                 "w-14 h-8 rounded-full transition-colors relative",
-                                rules?.break_reminder_enabled ? "bg-amber-500" : "bg-gray-300"
+                                rules?.breakReminderEnabled ? "bg-amber-500" : "bg-gray-300"
                             )}
                         >
                             <span className={clsx(
                                 "absolute top-1 w-6 h-6 bg-white rounded-full shadow transition-transform",
-                                rules?.break_reminder_enabled ? "right-1" : "left-1"
+                                rules?.breakReminderEnabled ? "right-1" : "left-1"
                             )} />
                         </button>
                     </div>
-
-                    {rules?.break_reminder_enabled && (
+                    {rules?.breakReminderEnabled && (
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1">Reminder Interval</label>
                             <select
-                                value={rules?.break_reminder_interval || 30}
-                                onChange={(e) => setRules(r => r ? { ...r, break_reminder_interval: parseInt(e.target.value) } : null)}
+                                value={rules?.breakReminderInterval || 30}
+                                onChange={(e) => setRules(r => r ? { ...r, breakReminderInterval: parseInt(e.target.value) } : null)}
                                 className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-amber-200 focus:border-amber-400 outline-none"
                             >
                                 <option value={15}>Every 15 minutes</option>

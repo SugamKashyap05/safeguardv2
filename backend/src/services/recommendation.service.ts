@@ -2,6 +2,7 @@ import { supabaseAdmin } from '../config/supabase';
 import { YouTubeService } from './youtube.service';
 import { AppError } from '../utils/AppError';
 import { HTTP_STATUS } from '../utils/httpStatus';
+import prisma from '../config/prisma';
 
 const youtubeService = new YouTubeService();
 
@@ -12,6 +13,19 @@ export class RecommendationService {
      * Based on last 10 watched videos to find top tags/categories
      */
     async getPersonalized(childId: string): Promise<any> {
+        // 0. Check if child is paused before allowing recommendations
+        const child = await prisma.child.findUnique({
+            where: { id: childId },
+            select: { isActive: true, pauseReason: true }
+        });
+
+        if (!child || !child.isActive) {
+            throw new AppError(
+                child?.pauseReason || 'Access paused by parent',
+                HTTP_STATUS.FORBIDDEN
+            );
+        }
+
         // 1. Fetch recent history
         const { data: history } = await supabaseAdmin
             .from('watch_history')
@@ -56,6 +70,19 @@ export class RecommendationService {
      * Static queries for now, can be improved
      */
     async getEducational(childId: string, ageLevel?: string) {
+        // Check if child is paused before allowing recommendations
+        const child = await prisma.child.findUnique({
+            where: { id: childId },
+            select: { isActive: true, pauseReason: true }
+        });
+
+        if (!child || !child.isActive) {
+            throw new AppError(
+                child?.pauseReason || 'Access paused by parent',
+                HTTP_STATUS.FORBIDDEN
+            );
+        }
+
         // ageLevel could optimize the query terms
         const query = 'educational videos for kids science nature';
         let videos: any[] = [];
@@ -79,6 +106,19 @@ export class RecommendationService {
      * Get Trending / For You
      */
     async getTrending(childId: string) {
+        // Check if child is paused before allowing recommendations
+        const child = await prisma.child.findUnique({
+            where: { id: childId },
+            select: { isActive: true, pauseReason: true }
+        });
+
+        if (!child || !child.isActive) {
+            throw new AppError(
+                child?.pauseReason || 'Access paused by parent',
+                HTTP_STATUS.FORBIDDEN
+            );
+        }
+
         // Mocking "Trending" with a robust safe query
         const query = 'best kids shows 2025';
         let videos: any[] = [];
@@ -102,6 +142,19 @@ export class RecommendationService {
      * Get By Category
      */
     async getByCategory(childId: string, category: string) {
+        // Check if child is paused before allowing recommendations
+        const child = await prisma.child.findUnique({
+            where: { id: childId },
+            select: { isActive: true, pauseReason: true }
+        });
+
+        if (!child || !child.isActive) {
+            throw new AppError(
+                child?.pauseReason || 'Access paused by parent',
+                HTTP_STATUS.FORBIDDEN
+            );
+        }
+
         const query = `kids ${category} videos safe`;
         let videos: any[] = [];
         try {

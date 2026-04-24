@@ -48,7 +48,7 @@ export class ReportController {
 
         res.set({
             'Content-Type': 'application/pdf',
-            'Content-Disposition': `attachment; filename=safeguard-report-${report.week_start_date}.pdf`,
+            'Content-Disposition': `attachment; filename=safeguard-report-${(report as any).weekStartDate}.pdf`,
             'Content-Length': pdfBuffer.length
         });
         res.end(pdfBuffer);

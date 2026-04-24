@@ -35,7 +35,7 @@ const fixGamification = async () => {
         await gamificationService.awardStars(child.id, starsToAward, 'History Backfill');
 
         // Also force check badges
-        await gamificationService.checkStarBadges(child.id, (await gamificationService.getStats(child.id)).total_stars_earned);
+        await gamificationService.checkStarBadges(child.id, (await gamificationService.getStats(child.id)).totalStarsEarned);
 
         console.log('✅ Backfill complete.');
     } else {

@@ -32,7 +32,7 @@ async function test() {
 
         // 3. Check Not Filtering first (dummy ID)
         const res1 = await fetch(`http://localhost:5000/api/v1/playlists/discover`);
-        const json1 = await response.json();
+        const json1 = await res1.json();
         // Wait, fetch is not defined in node 14/16 without flag or package. 
         // using axios or node-fetch? Backend has 'axios'? No, backend uses express.
         // Frontend has axios. Backend might not have axios installed in standard deps?
@@ -49,7 +49,8 @@ async function test() {
         const found = json.data.education.find((p: any) => p.title === 'Crash Course Kids');
         console.log('Found in discovery?', !!found);
 
-        if (found) console.error('FAIL: Should be filtered');
+        if (!res.ok) throw new Error(`Failed to update ${childId}`);
+        else if (found) console.error('FAIL: Should be filtered');
         else console.log('PASS: Filtered successfully');
 
         // Cleanup

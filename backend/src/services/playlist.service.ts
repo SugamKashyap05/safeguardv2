@@ -1,444 +1,211 @@
-import { supabaseAdmin } from '../config/supabase';
-
-export interface Playlist {
-    id: string;
-    child_id: string;
-    name: string;
-    description?: string;
-    type: 'favorites' | 'watch_later' | 'custom';
-    is_default: boolean;
-    thumbnail?: string;
-    items?: PlaylistItem[];
-    item_count?: number;
-    created_at: string;
-    updated_at: string;
-}
-
-export interface PlaylistItem {
-    id: string;
-    playlist_id: string;
-    video_id: string;
-    position: number;
-    added_at: string;
-    video_metadata: {
-        title: string;
-        thumbnail: string;
-        channelTitle: string;
-        duration?: string;
-        viewCount?: string;
-        publishedAt?: string;
-    };
-}
+import prisma from '../config/prisma';
+import { AppError } from '../utils/AppError';
+import { HTTP_STATUS } from '../utils/httpStatus';
 
 export class PlaylistService {
 
-    /**
-     * Create default playlists for a new child
-     */
-    static async createDefaultPlaylists(childId: string) {
-        const defaults = [
-            {
-                child_id: childId,
-                name: 'Favorites',
-                type: 'favorites',
-                is_default: true,
-                description: 'Your favorite videos'
+    async getPlaylists(childId: string) {
+        return prisma.playlist.findMany({
+            where: { childId },
+            include: { _count: { select: { items: true } } },
+            orderBy: { createdAt: 'asc' },
+        });
+    }
+
+    async getPlaylist(playlistId: string, childId: string) {
+        const playlist = await prisma.playlist.findFirst({
+            where: { id: playlistId, childId },
+            include: { items: { orderBy: { position: 'asc' } } },
+        });
+        if (!playlist) throw new AppError('Playlist not found', HTTP_STATUS.NOT_FOUND);
+        return playlist;
+    }
+
+    async createPlaylist(childId: string, data: {
+        name: string;
+        description?: string;
+        type?: string;
+        thumbnail?: string;
+    }) {
+        // Map types to Enum values (USER_CREATED, WATCH_LATER, FAVORITES, RECOMMENDED)
+        let playlistType: 'USER_CREATED' | 'WATCH_LATER' | 'FAVORITES' | 'RECOMMENDED' = 'USER_CREATED';
+        if (data.type?.toUpperCase() === 'FAVORITES') playlistType = 'FAVORITES';
+        if (data.type?.toUpperCase() === 'WATCH_LATER') playlistType = 'WATCH_LATER';
+        if (data.type?.toUpperCase() === 'RECOMMENDED') playlistType = 'RECOMMENDED';
+
+        return prisma.playlist.create({
+            data: {
+                childId,
+                name: data.name,
+                description: data.description,
+                type: playlistType,
+                thumbnail: data.thumbnail,
             },
-            {
-                child_id: childId,
-                name: 'Watch Later',
-                type: 'watch_later',
-                is_default: true,
-                description: 'Videos saved for later'
-            }
-        ];
-
-        const { error } = await supabaseAdmin
-            .from('playlists')
-            .insert(defaults);
-
-        if (error) throw error;
+        });
     }
 
-    /**
-     * Get all playlists for a child
-     */
-    static async getPlaylists(childId: string) {
-        // Get playlists
-        const { data: playlists, error } = await supabaseAdmin
-            .from('playlists')
-            .select('*')
-            .eq('child_id', childId)
-            .order('is_default', { ascending: false }) // Defaults first
-            .order('created_at', { ascending: false });
+    async updatePlaylist(playlistId: string, childId: string, updates: {
+        name?: string;
+        description?: string;
+        thumbnail?: string;
+    }) {
+        const playlist = await prisma.playlist.findFirst({ where: { id: playlistId, childId } });
+        if (!playlist) throw new AppError('Playlist not found', HTTP_STATUS.NOT_FOUND);
 
-        if (error) throw error;
-
-        // Get item counts and thumbnails for each playlist
-        // This is a bit n+1 but Supabase doesn't do deep aggregation easily without simplified views
-        // Optimization: Create a database view or function for this
-
-        const playlistsWithMeta = await Promise.all(playlists.map(async (pl) => {
-            const { count } = await supabaseAdmin
-                .from('playlist_items')
-                .select('*', { count: 'exact', head: true })
-                .eq('playlist_id', pl.id);
-
-            // Get first video thumbnail if playlist thumbnail is missing
-            if (!pl.thumbnail && count && count > 0) {
-                const { data: firstItem } = await supabaseAdmin
-                    .from('playlist_items')
-                    .select('video_metadata')
-                    .eq('playlist_id', pl.id)
-                    .order('position', { ascending: true })
-                    .limit(1)
-                    .single();
-
-                if (firstItem?.video_metadata?.thumbnail) {
-                    pl.thumbnail = firstItem.video_metadata.thumbnail;
-                }
-            }
-
-            return {
-                ...pl,
-                item_count: count || 0
-            };
-        }));
-
-        return playlistsWithMeta;
+        return prisma.playlist.update({ where: { id: playlistId }, data: updates });
     }
 
-    /**
-     * Get specific playlist with videos
-     */
-    static async getPlaylistById(playlistId: string) {
-        const { data: playlist, error } = await supabaseAdmin
-            .from('playlists')
-            .select('*')
-            .eq('id', playlistId)
-            .single();
+    async deletePlaylist(playlistId: string, childId: string) {
+        const playlist = await prisma.playlist.findFirst({ where: { id: playlistId, childId } });
+        if (!playlist) throw new AppError('Playlist not found', HTTP_STATUS.NOT_FOUND);
+        if (playlist.isDefault) throw new AppError('Cannot delete default playlist', HTTP_STATUS.FORBIDDEN);
 
-        if (error) throw error;
-
-        const { data: items, error: itemsError } = await supabaseAdmin
-            .from('playlist_items')
-            .select('*')
-            .eq('playlist_id', playlistId)
-            .order('position', { ascending: true });
-
-        if (itemsError) throw itemsError;
-
-        return {
-            ...playlist,
-            items: items || []
-        };
+        await prisma.playlist.delete({ where: { id: playlistId } });
+        return { success: true };
     }
 
-    /**
-     * Create custom playlist
-     */
-    static async createPlaylist(childId: string, name: string, description?: string) {
-        // Limit: Max 10 custom playlists per child
-        const { count: customCount } = await supabaseAdmin
-            .from('playlists')
-            .select('*', { count: 'exact', head: true })
-            .eq('child_id', childId)
-            .eq('is_default', false);
+    async addVideo(playlistId: string, childId: string, data: {
+        videoId: string;
+        videoMetadata?: any;
+    }) {
+        const playlist = await prisma.playlist.findFirst({ where: { id: playlistId, childId } });
+        if (!playlist) throw new AppError('Playlist not found', HTTP_STATUS.NOT_FOUND);
 
-        if (customCount && customCount >= 10) {
-            throw new Error('Maximum of 10 custom playlists allowed');
-        }
+        // Get next position
+        const lastItem = await prisma.playlistItem.findFirst({
+            where: { playlistId },
+            orderBy: { position: 'desc' },
+        });
+        const position = (lastItem?.position ?? -1) + 1;
 
-        const { data, error } = await supabaseAdmin
-            .from('playlists')
-            .insert({
-                child_id: childId,
-                name,
-                description,
-                type: 'custom',
-                is_default: false
-            })
-            .select()
-            .single();
-
-        if (error) throw error;
-        return data;
-    }
-
-    /**
-     * Add video to playlist
-     */
-    static async addToPlaylist(playlistId: string, videoId: string, metadata: any) {
-        // Limit: Max 50 videos per playlist
-        const { count: videoCount } = await supabaseAdmin
-            .from('playlist_items')
-            .select('*', { count: 'exact', head: true })
-            .eq('playlist_id', playlistId);
-
-        if (videoCount && videoCount >= 50) {
-            throw new Error('Maximum of 50 videos per playlist allowed');
-        }
-
-        // Check if exists
-        const { count } = await supabaseAdmin
-            .from('playlist_items')
-            .select('*', { count: 'exact', head: true })
-            .eq('playlist_id', playlistId)
-            .eq('video_id', videoId);
-
-        if (count && count > 0) {
-            throw new Error('Video already in playlist');
-        }
-
-        // Get current max position
-        const { data: lastItem } = await supabaseAdmin
-            .from('playlist_items')
-            .select('position')
-            .eq('playlist_id', playlistId)
-            .order('position', { ascending: false })
-            .limit(1)
-            .single();
-
-        const position = lastItem ? lastItem.position + 1 : 0;
-
-        const { data, error } = await supabaseAdmin
-            .from('playlist_items')
-            .insert({
-                playlist_id: playlistId,
-                video_id: videoId,
+        return prisma.playlistItem.upsert({
+            where: { playlistId_videoId: { playlistId, videoId: data.videoId } },
+            update: { videoMetadata: data.videoMetadata ?? {} },
+            create: {
+                playlistId,
+                videoId: data.videoId,
                 position,
-                video_metadata: metadata
-            })
-            .select()
-            .single();
-
-        if (error) throw error;
-
-        // Update playlist updated_at
-        await supabaseAdmin
-            .from('playlists')
-            .update({ updated_at: new Date().toISOString() })
-            .eq('id', playlistId);
-
-        return data;
+                videoMetadata: data.videoMetadata ?? {},
+            },
+        });
     }
 
-    /**
-     * Remove video from playlist
-     */
-    static async removeFromPlaylist(playlistId: string, videoId: string) {
-        const { error } = await supabaseAdmin
-            .from('playlist_items')
-            .delete()
-            .eq('playlist_id', playlistId)
-            .eq('video_id', videoId);
+    async removeVideo(playlistId: string, childId: string, videoId: string) {
+        const playlist = await prisma.playlist.findFirst({ where: { id: playlistId, childId } });
+        if (!playlist) throw new AppError('Playlist not found', HTTP_STATUS.NOT_FOUND);
 
-        if (error) throw error;
+        const item = await prisma.playlistItem.findFirst({
+            where: { playlistId, videoId },
+        });
+        if (!item) throw new AppError('Video not in playlist', HTTP_STATUS.NOT_FOUND);
+
+        await prisma.playlistItem.delete({ where: { id: item.id } });
+        return { success: true };
     }
 
-    /**
-     * Delete playlist
-     */
-    static async deletePlaylist(playlistId: string) {
-        // Verify it's not a default playlist
-        const { data: pl } = await supabaseAdmin.from('playlists').select('is_default').eq('id', playlistId).single();
-        if (pl?.is_default) throw new Error('Cannot delete default playlists');
+    async reorderPlaylist(playlistId: string, childId: string, videoIds: string[]) {
+        const playlist = await prisma.playlist.findFirst({ where: { id: playlistId, childId } });
+        if (!playlist) throw new AppError('Playlist not found', HTTP_STATUS.NOT_FOUND);
 
-        const { error } = await supabaseAdmin
-            .from('playlists')
-            .delete()
-            .eq('id', playlistId);
-
-        if (error) throw error;
+        // Update positions in a transaction
+        await prisma.$transaction(
+            videoIds.map((videoId, index) =>
+                prisma.playlistItem.updateMany({
+                    where: { playlistId, videoId },
+                    data: { position: index },
+                }),
+            ),
+        );
+        return { success: true };
     }
 
-    /**
-     * Check if video is in favorites
-     */
-    static async isFavorited(childId: string, videoId: string): Promise<boolean> {
-        // Find favorites playlist for child
-        const { data: favList } = await supabaseAdmin
-            .from('playlists')
-            .select('id')
-            .eq('child_id', childId)
-            .eq('type', 'favorites')
-            .single();
+    async toggleFavorite(childId: string, videoId: string, videoMetadata?: any): Promise<{
+        isFavorited: boolean;
+    }> {
+        // Get or create Favorites playlist
+        let favPlaylist = await prisma.playlist.findFirst({
+            where: { childId, type: 'FAVORITES' },
+        });
 
-        if (!favList) return false;
-
-        const { count } = await supabaseAdmin
-            .from('playlist_items')
-            .select('*', { count: 'exact', head: true })
-            .eq('playlist_id', favList.id)
-            .eq('video_id', videoId);
-
-        return (count || 0) > 0;
-    }
-
-    /**
-     * Toggle Favorite
-     */
-    static async toggleFavorite(childId: string, videoId: string, metadata: any) {
-        // Find favorites playlist
-        let { data: favList } = await supabaseAdmin
-            .from('playlists')
-            .select('id')
-            .eq('child_id', childId)
-            .eq('type', 'favorites')
-            .single();
-
-        // Create if doesn't exist (recovery)
-        if (!favList) {
-            await this.createDefaultPlaylists(childId);
-            const { data: newFav } = await supabaseAdmin
-                .from('playlists')
-                .select('id')
-                .eq('child_id', childId)
-                .eq('type', 'favorites')
-                .single();
-            favList = newFav;
+        if (!favPlaylist) {
+            favPlaylist = await prisma.playlist.create({
+                data: { childId, name: 'Favorites', type: 'FAVORITES', isDefault: true },
+            });
         }
 
-        if (!favList) throw new Error("Could not find or create Favorites playlist");
+        // Check if video is already in favorites
+        const existing = await prisma.playlistItem.findFirst({
+            where: { playlistId: favPlaylist.id, videoId },
+        });
 
-        const isFav = await this.isFavorited(childId, videoId);
-
-        if (isFav) {
-            await this.removeFromPlaylist(favList.id, videoId);
-            return false; // Removed
-        } else {
-            await this.addToPlaylist(favList.id, videoId, metadata);
-            return true; // Added
-        }
-    }
-
-    /**
-     * Reorder playlist items
-     * @param playlistId - Playlist ID
-     * @param orderedIds - Array of item IDs in the new order
-     */
-    static async reorderItems(playlistId: string, orderedIds: string[]) {
-        // Update positions based on array index
-        const updates = orderedIds.map((id, index) => ({
-            id,
-            position: index
-        }));
-
-        // Use a transaction-like approach (Supabase doesn't have true transactions for multiple updates)
-        for (const update of updates) {
-            const { error } = await supabaseAdmin
-                .from('playlist_items')
-                .update({ position: update.position })
-                .eq('id', update.id)
-                .eq('playlist_id', playlistId);
-
-            if (error) throw error;
+        if (existing) {
+            await prisma.playlistItem.delete({ where: { id: existing.id } });
+            return { isFavorited: false };
         }
 
-        // Update playlist timestamp
-        await supabaseAdmin
-            .from('playlists')
-            .update({ updated_at: new Date().toISOString() })
-            .eq('id', playlistId);
+        const lastItem = await prisma.playlistItem.findFirst({
+            where: { playlistId: favPlaylist.id },
+            orderBy: { position: 'desc' },
+        });
+
+        await prisma.playlistItem.create({
+            data: {
+                playlistId: favPlaylist.id,
+                videoId,
+                position: (lastItem?.position ?? -1) + 1,
+                videoMetadata: videoMetadata ?? {},
+            },
+        });
+
+        return { isFavorited: true };
     }
 
-    /**
-     * Remove all videos from a child's playlists by channel
-     * Called when a channel is blocked
-     * @param childId - Child ID
-     * @param channelId - Channel ID to remove
-     */
+    async getFavorites(childId: string) {
+        const favPlaylist = await prisma.playlist.findFirst({
+            where: { childId, type: 'FAVORITES' },
+            include: { items: { orderBy: { position: 'asc' } } },
+        });
+        return favPlaylist?.items ?? [];
+    }
+
+    async isVideoFavorited(childId: string, videoId: string): Promise<boolean> {
+        const favPlaylist = await prisma.playlist.findFirst({
+            where: { childId, type: 'FAVORITES' },
+        });
+        if (!favPlaylist) return false;
+
+        const item = await prisma.playlistItem.findFirst({
+            where: { playlistId: favPlaylist.id, videoId },
+        });
+        return !!item;
+    }
+
+    // Static method for content-filter.service.ts
     static async removeVideosByChannel(childId: string, channelId: string) {
-        // Get all playlists for this child
-        const { data: playlists } = await supabaseAdmin
-            .from('playlists')
-            .select('id')
-            .eq('child_id', childId);
+        // Find all playlists for this child
+        const playlists = await prisma.playlist.findMany({
+            where: { childId },
+            select: { id: true },
+        });
+        const playlistIds = playlists.map(p => p.id);
 
-        if (!playlists || playlists.length === 0) return;
+        if (playlistIds.length === 0) return;
 
-        // For each playlist, find items with matching channel and delete them
-        for (const playlist of playlists) {
-            // Get items with video_metadata containing the channelId
-            // Since channelId is stored in video_metadata JSONB, we use a contains query
-            const { data: items } = await supabaseAdmin
-                .from('playlist_items')
-                .select('id, video_metadata')
-                .eq('playlist_id', playlist.id);
+        // Get items where metadata contains this channelId
+        const items = await prisma.playlistItem.findMany({
+            where: { playlistId: { in: playlistIds } },
+        });
 
-            if (!items) continue;
+        // Filter items by channelId in metadata
+        const toDelete = items.filter(item => {
+            const meta = item.videoMetadata as any;
+            return meta?.channelId === channelId;
+        });
 
-            // Filter items by channelId in metadata
-            const toDelete = items.filter(item =>
-                item.video_metadata?.channelId === channelId ||
-                item.video_metadata?.channelTitle?.toLowerCase().includes(channelId.toLowerCase())
-            );
+        if (toDelete.length === 0) return;
 
-            if (toDelete.length > 0) {
-                // Delete matching items
-                await supabaseAdmin
-                    .from('playlist_items')
-                    .delete()
-                    .in('id', toDelete.map(i => i.id));
-            }
-        }
-    }
-    /**
-     * Get Curated Discovery Playlists
-     */
-    /**
-     * Get Curated Discovery Playlists
-     */
-    static async getDiscoveryPlaylists(childId?: string) {
-        // 1. Get child's existing playlists to exclude them
-        const existingIds = new Set<string>();
-        if (childId) {
-            const { data: playlists } = await supabaseAdmin
-                .from('playlists')
-                .select('name')
-                .eq('child_id', childId);
-
-            playlists?.forEach(p => existingIds.add(p.name));
-        }
-
-        const allPlaylists = {
-            education: [
-                { id: 'PL8dPuuaLjXtN0ge77e6y8l5G2lzXwYI_p', title: 'Crash Course Kids', description: 'Science for kids', thumbnail: 'https://i.ytimg.com/vi/k0XH6l4a3I8/hqdefault.jpg', item_count: 50 },
-                { id: 'PL139F241EBC37D97F', title: 'Story Time', description: 'Read aloud books', thumbnail: 'https://i.ytimg.com/vi/1_I-wK5vB3E/hqdefault.jpg', item_count: 25 },
-                { id: 'PLJicmE8fK0EiK1', title: 'National Geographic Kids', description: 'Explore the world', thumbnail: 'https://i.ytimg.com/vi/Xj1nN8c1', item_count: 42 },
-                { id: 'PLexample1', title: 'Math Antics', description: 'Basic Math fun', thumbnail: 'https://i.ytimg.com/vi/math', item_count: 30 },
-                { id: 'PLexample2', title: 'Khan Academy Kids', description: 'Early learning', thumbnail: 'https://i.ytimg.com/vi/khan', item_count: 60 },
-                { id: 'PLexample9', title: 'Simple Science', description: 'Easy experiments', thumbnail: 'https://i.ytimg.com/vi/science', item_count: 15 },
-            ],
-            music: [
-                { id: 'PLdkj6XH8GYPRl_mM2rN7K9eM8s0G5D-xX', title: 'Disney Sing-Alongs', description: 'Favorite Disney songs', thumbnail: 'https://i.ytimg.com/vi/L0MK7qz13bU/hqdefault.jpg', item_count: 40 },
-                { id: 'PLexample3', title: 'LooLoo Kids', description: 'Nursery Rhymes', thumbnail: 'https://i.ytimg.com/vi/looloo', item_count: 100 },
-                { id: 'PLexample4', title: 'Super Simple Songs', description: 'Kids songs', thumbnail: 'https://i.ytimg.com/vi/super', item_count: 80 },
-                { id: 'PLexample10', title: 'Classical for Kids', description: 'Relaxing music', thumbnail: 'https://i.ytimg.com/vi/mozart', item_count: 20 },
-            ],
-            science: [
-                { id: 'PLQlnTldJs0ZQq-C-lsnACLUn_7M8QfJ_x', title: 'Nat Geo Kids', description: 'Animals and nature', thumbnail: 'https://i.ytimg.com/vi/DefLknjRjV0/hqdefault.jpg', item_count: 30 },
-                { id: 'PLexample5', title: 'Peekaboo Kidz', description: 'Dr. Binocs Show', thumbnail: 'https://i.ytimg.com/vi/binocs', item_count: 150 },
-                { id: 'PLexample6', title: 'SciShow Kids', description: 'Why and How', thumbnail: 'https://i.ytimg.com/vi/scishow', item_count: 90 },
-                { id: 'PLexample11', title: 'Space Corner', description: 'All about space', thumbnail: 'https://i.ytimg.com/vi/space', item_count: 12 },
-            ],
-            arts: [
-                { id: 'PLexample7', title: 'Art for Kids Hub', description: 'Drawing lessons', thumbnail: 'https://i.ytimg.com/vi/arts', item_count: 200 },
-                { id: 'PLexample8', title: 'Muffalo Potato', description: 'Draw with letters', thumbnail: 'https://i.ytimg.com/vi/muffalo', item_count: 45 },
-            ],
-            animals: [
-                { id: 'PLexample12', title: 'The Dodo Kids', description: 'Rescued animals', thumbnail: 'https://i.ytimg.com/vi/dodo', item_count: 88 },
-                { id: 'PLexample13', title: 'Brave Wilderness', description: 'Wild encounters', thumbnail: 'https://i.ytimg.com/vi/brave', item_count: 55 },
-            ]
-        };
-
-        // Filter out already added playlists
-        // We compare existing Playlist Names to the Discovery Title
-        const filtered: any = {};
-        for (const [category, list] of Object.entries(allPlaylists)) {
-            filtered[category] = list.filter(p => !existingIds.has(p.title));
-        }
-
-        return filtered;
+        await prisma.playlistItem.deleteMany({
+            where: { id: { in: toDelete.map(i => i.id) } },
+        });
     }
 }

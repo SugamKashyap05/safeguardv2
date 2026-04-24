@@ -59,15 +59,15 @@ export const ScreenTimeSettings = ({ childId }: { childId: string }) => {
                 <div className="bg-gray-50 p-6 rounded-xl space-y-6">
                     <div>
                         <label className="block text-sm font-medium text-gray-600 mb-2">
-                            Base Daily Limit: <span className="text-indigo-600 font-bold">{rules.daily_limit_minutes} mins</span>
+                            Base Daily Limit: <span className="text-indigo-600 font-bold">{rules.dailyLimitMinutes} mins</span>
                         </label>
                         <input
                             type="range"
                             min="0"
                             max="180"
                             step="15"
-                            value={rules.daily_limit_minutes || 60}
-                            onChange={(e) => setRules({ ...rules, daily_limit_minutes: parseInt(e.target.value) })}
+                            value={rules.dailyLimitMinutes || 60}
+                            onChange={(e) => setRules({ ...rules, dailyLimitMinutes: parseInt(e.target.value) })}
                             className="w-full accent-indigo-600"
                         />
                         <div className="flex justify-between text-xs text-gray-400 mt-1">
@@ -91,25 +91,25 @@ export const ScreenTimeSettings = ({ childId }: { childId: string }) => {
                     <div className="flex items-center gap-2">
                         <input
                             type="checkbox"
-                            checked={rules.bedtime_mode?.enabled}
+                            checked={rules.bedtimeMode?.enabled}
                             onChange={(e) => setRules({
                                 ...rules,
-                                bedtime_mode: { ...rules.bedtime_mode, enabled: e.target.checked }
+                                bedtimeMode: { ...rules.bedtimeMode, enabled: e.target.checked }
                             })}
                             className="w-5 h-5 accent-purple-600 rounded"
                         />
                     </div>
                 </div>
-                {rules.bedtime_mode?.enabled && (
+                {rules.bedtimeMode?.enabled && (
                     <div className="grid grid-cols-2 gap-4">
                         <div>
                             <label className="text-sm text-gray-600">Start Time</label>
                             <input
                                 type="time"
-                                value={rules.bedtime_mode?.startTime || '20:00'}
+                                value={rules.bedtimeMode?.startTime || '20:00'}
                                 onChange={(e) => setRules({
                                     ...rules,
-                                    bedtime_mode: { ...rules.bedtime_mode, startTime: e.target.value }
+                                    bedtimeMode: { ...rules.bedtimeMode, startTime: e.target.value }
                                 })}
                                 className="w-full mt-1 p-2 border rounded-lg"
                             />
@@ -118,10 +118,10 @@ export const ScreenTimeSettings = ({ childId }: { childId: string }) => {
                             <label className="text-sm text-gray-600">End Time</label>
                             <input
                                 type="time"
-                                value={rules.bedtime_mode?.endTime || '07:00'}
+                                value={rules.bedtimeMode?.endTime || '07:00'}
                                 onChange={(e) => setRules({
                                     ...rules,
-                                    bedtime_mode: { ...rules.bedtime_mode, endTime: e.target.value }
+                                    bedtimeMode: { ...rules.bedtimeMode, endTime: e.target.value }
                                 })}
                                 className="w-full mt-1 p-2 border rounded-lg"
                             />
@@ -140,26 +140,26 @@ export const ScreenTimeSettings = ({ childId }: { childId: string }) => {
                         <p className="font-medium text-gray-900">Break Reminders</p>
                         <input
                             type="checkbox"
-                            checked={rules.break_reminder_enabled}
+                            checked={rules.breakReminderEnabled}
                             onChange={(e) => setRules({
                                 ...rules,
-                                break_reminder_enabled: e.target.checked
+                                breakReminderEnabled: e.target.checked
                             })}
                             className="w-5 h-5 accent-orange-600 rounded"
                         />
                     </div>
-                    {rules.break_reminder_enabled && (
+                    {rules.breakReminderEnabled && (
                         <div>
                             <label className="text-sm text-gray-600">
-                                Remind every <span className="font-bold">{rules.break_reminder_interval} mins</span>
+                                Remind every <span className="font-bold">{rules.breakReminderInterval} mins</span>
                             </label>
                             <input
                                 type="range"
                                 min="15"
                                 max="60"
                                 step="5"
-                                value={rules.break_reminder_interval || 30}
-                                onChange={(e) => setRules({ ...rules, break_reminder_interval: parseInt(e.target.value) })}
+                                value={rules.breakReminderInterval || 30}
+                                onChange={(e) => setRules({ ...rules, breakReminderInterval: parseInt(e.target.value) })}
                                 className="w-full accent-orange-500 mt-2"
                             />
                         </div>

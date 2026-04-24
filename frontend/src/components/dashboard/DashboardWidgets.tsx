@@ -103,9 +103,14 @@ export const DeviceManager = ({ devices = [], onTogglePause }: { devices: any[],
                     return (
                         <div key={device.id} className="p-4 flex items-center justify-between hover:bg-gray-50 transition-colors">
                             <div className="flex items-center gap-4">
-                                <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${device.is_paused ? 'bg-red-50 text-red-400' : 'bg-green-50 text-green-600'}`}>
-                                    <Icon size={20} />
-                                </div>
+                                {(() => {
+                                    const isPaused = device.isPaused !== undefined ? device.isPaused : device.is_paused;
+                                    return (
+                                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${isPaused ? 'bg-red-50 text-red-400' : 'bg-green-50 text-green-600'}`}>
+                                            <Icon size={20} />
+                                        </div>
+                                    );
+                                })()}
                                 <div>
                                     <h4 className="font-bold text-gray-900">{device.device_name}</h4>
                                     <p className="text-xs text-gray-500">
@@ -114,17 +119,22 @@ export const DeviceManager = ({ devices = [], onTogglePause }: { devices: any[],
                                 </div>
                             </div>
 
-                            <button
-                                onClick={() => onTogglePause(device.id, !device.is_paused)}
-                                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2
-                                    ${device.is_paused
-                                        ? 'bg-red-100 text-red-600 hover:bg-red-200'
-                                        : 'bg-green-100 text-green-600 hover:bg-green-200'}
-                                `}
-                            >
-                                {device.is_paused ? <Play size={14} fill="currentColor" /> : <Pause size={14} fill="currentColor" />}
-                                {device.is_paused ? 'RESUME' : 'PAUSE'}
-                            </button>
+                            {(() => {
+                                const isPaused = device.isPaused !== undefined ? device.isPaused : device.is_paused;
+                                return (
+                                    <button
+                                        onClick={() => onTogglePause(device.id, !isPaused)}
+                                        className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2
+                                            ${isPaused
+                                                ? 'bg-red-100 text-red-600 hover:bg-red-200'
+                                                : 'bg-green-100 text-green-600 hover:bg-green-200'}
+                                        `}
+                                    >
+                                        {isPaused ? <Play size={14} fill="currentColor" /> : <Pause size={14} fill="currentColor" />}
+                                        {isPaused ? 'RESUME' : 'PAUSE'}
+                                    </button>
+                                );
+                            })()}
                         </div>
                     );
                 })}

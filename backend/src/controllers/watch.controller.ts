@@ -9,7 +9,7 @@ const syncService = new SyncService();
 export class WatchController {
 
     static async start(req: Request, res: Response) {
-        const log = await service.logVideoStart(req.body);
+        const log = await service.recordWatchHistory(req.body);
 
         // --- Live Status Sync ---
         // We track that this child is now watching this video
@@ -34,12 +34,12 @@ export class WatchController {
         const result = await service.updateProgress(id, watchedDuration, duration);
 
         // Emit realtime usage update
-        if (result.childId && result.todayUsage) {
+        if (result && result.childId && (result as any).todayUsage) {
             // @ts-ignore
             const io = req.app.get('io');
             if (io) {
                 io.to(`child_${result.childId}`).emit('usage:updated', {
-                    todayUsage: result.todayUsage,
+                    todayUsage: (result as any).todayUsage,
                     childId: result.childId
                 });
             }
@@ -67,13 +67,13 @@ export class WatchController {
         const page = parseInt(req.query.page as string) || 1;
         const limit = parseInt(req.query.limit as string) || 20;
 
-        const result = await service.getHistory(childId, page, limit);
+        const result = await service.getWatchHistory(childId, limit);
         return ApiResponse.success(res, result);
     }
 
     static async getStats(req: Request, res: Response) {
         const { childId } = req.params;
-        const stats = await service.getStats(childId);
+        const stats = await service.getTodayWatchTime(childId);
         return ApiResponse.success(res, stats);
     }
 
@@ -83,7 +83,7 @@ export class WatchController {
         const page = parseInt(req.query.page as string) || 1;
         const limit = parseInt(req.query.limit as string) || 20;
 
-        const result = await service.getHistory(childId, page, limit);
+        const result = await service.getWatchHistory(childId, limit);
         return ApiResponse.success(res, result);
     }
 }

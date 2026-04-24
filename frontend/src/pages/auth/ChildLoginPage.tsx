@@ -31,7 +31,11 @@ export const ChildLoginPage = () => {
     };
 
     const handleChildSelect = (child: any) => {
-        if (!child.is_active) return;
+        const active = child.isActive !== undefined ? child.isActive : child.is_active;
+        const pausedUntil = child.pausedUntil || child.paused_until;
+        const isPaused = active === false || (pausedUntil && new Date(pausedUntil) > new Date());
+        
+        if (isPaused) return;
         setSelectedChild(child);
         setStep('PIN');
         setError('');
@@ -100,16 +104,24 @@ export const ChildLoginPage = () => {
                                     <button
                                         key={child.id}
                                         onClick={() => handleChildSelect(child)}
-                                        disabled={!child.is_active}
+                                        disabled={child.isActive === false || child.is_active === false}
                                         className="group flex flex-col items-center gap-4 transition-transform hover:scale-105"
                                     >
-                                        <div className={clsx(
-                                            "w-32 h-32 rounded-3xl flex items-center justify-center text-6xl shadow-xl border-4 transition-all relative overflow-hidden bg-white",
-                                            !child.is_active ? "grayscale opacity-50 border-gray-200" : "border-white group-hover:border-yellow-400"
-                                        )}>
-                                            {child.avatar || '🐼'}
-                                            {!child.is_active && <div className="absolute inset-0 bg-gray-200/50 flex items-center justify-center text-xs font-bold text-gray-600 uppercase tracking-widest">Paused</div>}
-                                        </div>
+                                        {(() => {
+                                            const active = child.isActive !== undefined ? child.isActive : child.is_active;
+                                            const pausedUntil = child.pausedUntil || child.paused_until;
+                                            const isPaused = active === false || (pausedUntil && new Date(pausedUntil) > new Date());
+                                            
+                                            return (
+                                                <div className={clsx(
+                                                    "w-32 h-32 rounded-3xl flex items-center justify-center text-6xl shadow-xl border-4 transition-all relative overflow-hidden bg-white",
+                                                    isPaused ? "grayscale opacity-50 border-gray-200" : "border-white group-hover:border-yellow-400"
+                                                )}>
+                                                    {child.avatar || '🐼'}
+                                                    {isPaused && <div className="absolute inset-0 bg-gray-200/50 flex items-center justify-center text-xs font-bold text-gray-600 uppercase tracking-widest">Paused</div>}
+                                                </div>
+                                            );
+                                        })()}
                                         <span className="text-xl font-bold text-gray-700">{child.name}</span>
                                     </button>
                                 ))}

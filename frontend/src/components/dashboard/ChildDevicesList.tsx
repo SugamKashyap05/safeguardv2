@@ -71,7 +71,7 @@ export const ChildDevicesList = ({ childId }: { childId: string }) => {
             <div className="p-4 border-b border-gray-50 flex justify-between items-center bg-gray-50/50">
                 <h3 className="font-bold text-gray-700">Connected Devices</h3>
                 <span className="text-xs font-medium px-2 py-1 bg-blue-100 text-blue-700 rounded-full">
-                    {devices.filter(d => d.is_active).length} Active
+                    {devices.filter(d => d.isActive !== undefined ? d.isActive : d.is_active).length} Active
                 </span>
             </div>
 
@@ -89,9 +89,14 @@ export const ChildDevicesList = ({ childId }: { childId: string }) => {
                                     <h4 className="font-bold text-gray-800">{device.device_name}</h4>
                                     <p className="text-xs text-gray-500 font-medium flex items-center gap-1">
                                         {device.platform} •
-                                        <span className={device.is_active ? 'text-green-500' : 'text-gray-400'}>
-                                            {device.is_active ? ' Active Now' : ` Last seen ${new Date(device.last_active).toLocaleDateString()}`}
-                                        </span>
+                                        {(() => {
+                                            const isActive = device.isActive !== undefined ? device.isActive : device.is_active;
+                                            return (
+                                                <span className={isActive ? 'text-green-500' : 'text-gray-400'}>
+                                                    {isActive ? ' Active Now' : ` Last seen ${new Date(device.last_active).toLocaleDateString()}`}
+                                                </span>
+                                            );
+                                        })()}
                                     </p>
                                 </div>
                             </div>

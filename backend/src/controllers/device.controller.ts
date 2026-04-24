@@ -41,10 +41,9 @@ export class DeviceController {
         }
     }
 
-    // List Devices
     static async list(req: Request, res: Response) {
         const childId = req.params.childId;
-        const devices = await deviceService.getDevices(childId);
+        const devices = await deviceService.getChildDevices(childId);
         res.json({ status: 'success', data: devices });
     }
 
@@ -67,8 +66,8 @@ export class DeviceController {
     static async togglePause(req: Request, res: Response) {
         const { deviceId } = req.params;
         const { childId, isPaused } = req.body;
-
-        const device = await deviceService.toggleDevicePause(childId, deviceId, isPaused);
-        res.json({ status: 'success', data: device });
+        
+        // This functionality needs to be added to DeviceService, stub for now
+        res.status(501).json({ status: 'error', message: 'Not implemented' });
     }
 }

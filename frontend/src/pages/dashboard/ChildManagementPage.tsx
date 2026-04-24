@@ -7,6 +7,7 @@ import { AddChildModal } from '../../components/children/AddChildModal';
 import { Plus, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ChildDevicesList } from '../../components/dashboard/ChildDevicesList';
+import { api } from '../../services/api';
 
 export const ChildManagementPage = () => {
     const navigate = useNavigate();
@@ -14,6 +15,21 @@ export const ChildManagementPage = () => {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
     const [managingChild, setManagingChild] = useState<any | null>(null);
+
+    const handleTogglePause = async (child: any) => {
+        const active = child.isActive !== undefined ? child.isActive : child.is_active;
+        const endpoint = active === false ? `/emergency/resume/${child.id}` : `/emergency/pause/${child.id}`;
+        const data = active !== false ? { reason: 'Parent Toggle', duration: 0 } : {};
+
+        try {
+            const res = await api.post(endpoint, data);
+            if (res.data.success) {
+                loadChildren();
+            }
+        } catch (err) {
+            console.error('Failed to toggle pause:', err);
+        }
+    };
 
     const loadChildren = async () => {
         setIsLoading(true);
@@ -63,7 +79,7 @@ export const ChildManagementPage = () => {
                         key={child.id}
                         child={child}
                         onEdit={(c) => navigate(`/parent/child/${c.id}/manage`)}
-                        onTogglePause={(c) => console.log('Pause', c)}
+                        onTogglePause={handleTogglePause}
                         onViewActivity={(id) => navigate(`/parent/activity/${id}`)}
                         onManageChannels={(id) => navigate(`/parent/channels/${id}`)}
                         onManageDevices={(c) => setManagingChild(c)}

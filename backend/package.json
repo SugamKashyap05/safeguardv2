@@ -11,6 +11,8 @@
     "health-check": "node scripts/health-check.js"
   },
   "dependencies": {
+    "@prisma/adapter-pg": "^7.7.0",
+    "@prisma/client": "^7.7.0",
     "@supabase/supabase-js": "^2.90.1",
     "bcryptjs": "^3.0.3",
     "cors": "^2.8.5",
@@ -22,7 +24,7 @@
     "jsonwebtoken": "^9.0.3",
     "node-cache": "^5.1.2",
     "pdfkit": "^0.17.2",
-    "pg": "^8.17.1",
+    "pg": "^8.20.0",
     "socket.io": "^4.8.3"
   },
   "devDependencies": {
@@ -41,6 +43,7 @@
     "eslint": "^8.57.0",
     "nodemon": "^3.1.0",
     "prettier": "^3.2.5",
+    "prisma": "^7.7.0",
     "ts-node": "^10.9.2",
     "typescript": "^5.4.5"
   }

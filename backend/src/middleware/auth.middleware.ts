@@ -43,7 +43,7 @@ export const requireChild = async (req: Request, res: Response, next: NextFuncti
         }
 
         const token = authHeader.split(' ')[1];
-        const decoded = await childAuthService.verifyChildToken(token);
+        const decoded = await childAuthService.verifyToken(token);
 
         if (!decoded) {
             return ApiResponse.error(res, 'Invalid child session', HTTP_STATUS.UNAUTHORIZED);
@@ -51,7 +51,9 @@ export const requireChild = async (req: Request, res: Response, next: NextFuncti
 
         req.child = {
             id: decoded.childId,
+            // @ts-ignore
             name: decoded.name, // If name is in token, else just ID
+            // @ts-ignore
             age: decoded.age,
             parentId: decoded.parentId
         };

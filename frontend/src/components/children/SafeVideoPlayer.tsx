@@ -64,9 +64,14 @@ export const SafeVideoPlayer: React.FC<SafeVideoPlayerProps> = ({
                 });
                 setSessionId(res.data.data?.id || res.data.data?.sessionId);
                 initPlayer();
-            } catch (err) {
+            } catch (err: any) {
                 console.error('Session blocked', err);
-                alert("Time's up or content blocked!");
+                const message = err.response?.data?.message || err.message;
+                if (err.response?.status === 403) {
+                    alert(`Access Restricted: ${message || "Time's up or content blocked!"}`);
+                } else {
+                    alert("Unable to start video. Please check your connection.");
+                }
                 onClose();
             }
         };
@@ -166,7 +171,14 @@ export const SafeVideoPlayer: React.FC<SafeVideoPlayerProps> = ({
                 api.patch(`/watch/${sessionIdRef.current}/update`, {
                     watchedDuration: Math.floor(currentTimeRef.current),
                     duration: Math.floor(durationRef.current)
-                }).catch(err => console.error('Heartbeat failed', err));
+                }).catch(err => {
+                    console.error('Heartbeat failed', err);
+                    if (err.response?.status === 403) {
+                        const message = err.response?.data?.message || "Time's up!";
+                        alert(`Access Restricted: ${message}`);
+                        onClose();
+                    }
+                });
             }
         }, 10000); // 10s heartbeat
         return () => clearInterval(sync);

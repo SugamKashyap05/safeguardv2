@@ -1,5 +1,4 @@
-
-import { supabaseAdmin } from '../config/supabase';
+import prisma from '../config/prisma';
 import { gamificationService } from './gamification.service';
 import { socketService } from './websocket.service';
 
@@ -8,7 +7,7 @@ export interface ShopItem {
     type: 'hat' | 'glasses' | 'skin' | 'background';
     name: string;
     price: number;
-    icon: string; // Emoji or URL
+    icon: string;
 }
 
 const SHOP_ITEMS: ShopItem[] = [
@@ -24,72 +23,59 @@ const SHOP_ITEMS: ShopItem[] = [
 
 export class ShopService {
 
-    getShopItems() {
+    getShopItems(): ShopItem[] {
         return SHOP_ITEMS;
     }
 
-    async getInventory(childId: string) {
-        const { data, error } = await supabaseAdmin
-            .from('child_inventory')
-            .select('item_id')
-            .eq('child_id', childId);
-
-        if (error) throw error;
-
-        // Base items are always unlocked
-        const unlocks = data?.map(d => d.item_id) || [];
+    async getInventory(childId: string): Promise<string[]> {
+        const rows = await prisma.childInventory.findMany({
+            where: { childId },
+            select: { itemId: true },
+        });
+        const unlocks = rows.map(r => r.itemId);
         return ['skin_panda', ...unlocks];
     }
 
     async buyItem(childId: string, itemId: string) {
         const item = SHOP_ITEMS.find(i => i.id === itemId);
-        if (!item) throw new Error("Item not found");
+        if (!item) throw new Error('Item not found');
 
-        const childStats = await gamificationService.getStats(childId);
-        const childStars = childStats.stars;
+        // Use a transaction to atomically deduct stars + grant item
+        await prisma.$transaction(async (tx) => {
+            const child = await tx.child.findUnique({
+                where: { id: childId },
+                select: { stars: true },
+            });
+            if (!child) throw new Error('Child not found');
+            if (child.stars < item.price) throw new Error('Not enough stars');
 
-        if (childStars < item.price) {
-            throw new Error("Not enough stars");
-        }
-
-        // Deduct stars (Manual update or new method in gamification service?)
-        // Let's add spendStars to GamificationService or do it here.
-        // We do it directly here for speed.
-
-        const { error: starError } = await supabaseAdmin
-            .from('children')
-            .update({ stars: childStars - item.price })
-            .eq('id', childId);
-
-        if (starError) throw starError;
-
-        // Add to inventory
-        const { error: invError } = await supabaseAdmin
-            .from('child_inventory')
-            .insert({
-                child_id: childId,
-                item_id: itemId,
-                item_type: item.type
+            await tx.child.update({
+                where: { id: childId },
+                data: { stars: { decrement: item.price } },
             });
 
-        if (invError) {
-            // Rollback stars? In production yes, here we hope for best.
-            throw invError;
-        }
+            await tx.childInventory.create({
+                data: { childId, itemId, itemType: item.type },
+            });
+        });
+
+        const updated = await prisma.child.findUnique({
+            where: { id: childId },
+            select: { stars: true },
+        });
+        const newBalance = updated?.stars ?? 0;
 
         socketService.emitToChild(childId, 'shop:inventory_updated', { itemId, itemType: item.type });
-        socketService.emitToChild(childId, 'gamification:stars_updated', { stars: childStars - item.price });
+        socketService.emitToChild(childId, 'gamification:stars_updated', { stars: newBalance });
 
-        return { success: true, newBalance: childStars - item.price };
+        return { success: true, newBalance };
     }
 
     async saveAvatarConfig(childId: string, config: any) {
-        const { error } = await supabaseAdmin
-            .from('children')
-            .update({ avatar_config: config })
-            .eq('id', childId);
-
-        if (error) throw error;
+        await prisma.child.update({
+            where: { id: childId },
+            data: { avatarConfig: config },
+        });
         socketService.emitToChild(childId, 'shop:avatar_updated', { config });
         return { success: true };
     }

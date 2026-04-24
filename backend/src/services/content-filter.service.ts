@@ -1,4 +1,4 @@
-import { supabaseAdmin } from '../config/supabase';
+import prisma from '../config/prisma';
 import { AppError } from '../utils/AppError';
 import { HTTP_STATUS } from '../utils/httpStatus';
 
@@ -14,138 +14,161 @@ interface VideoMetadata {
 
 export class ContentFilterService {
 
-    /**
-     * Check if a video is allowed for a specific child
-     */
     async isVideoAllowed(childId: string, video: VideoMetadata): Promise<{ allowed: boolean; reason?: string }> {
-        // 1. Check Explicit Whitelist (Approved Videos)
-        const { data: approvedVideo } = await supabaseAdmin
-            .from('approved_videos')
-            .select('id')
-            .eq('child_id', childId)
-            .eq('video_id', video.videoId)
-            .single();
-
+        // 1. Explicit whitelist check
+        const approvedVideo = await prisma.approvedVideo.findFirst({
+            where: { childId, videoId: video.videoId },
+        });
         if (approvedVideo) return { allowed: true, reason: 'Explicitly approved by parent' };
 
-        // 2. Check Explicit Blacklist (Blocked Content)
-        const { data: blocked } = await supabaseAdmin
-            .from('blocked_content')
-            .select('reason')
-            .eq('child_id', childId)
-            .or(`video_id.eq.${video.videoId},channel_id.eq.${video.channelId}`)
-            .single();
+        // 2. Explicit blacklist check
+        const blocked = await prisma.blockedContent.findFirst({
+            where: {
+                childId,
+                OR: [
+                    { videoId: video.videoId },
+                    { channelId: video.channelId },
+                ],
+            },
+        });
+        if (blocked) return { allowed: false, reason: blocked.reason ?? 'Blocked by parent' };
 
-        if (blocked) return { allowed: false, reason: blocked.reason || 'Blocked by parent' };
-
-        // 3. Get Child Profile & Filters
-        const { data: child } = await supabaseAdmin
-            .from('children')
-            .select('age_appropriate_level, age')
-            .eq('id', childId)
-            .single();
-
-        const { data: filters } = await supabaseAdmin
-            .from('content_filters')
-            .select('*')
-            .eq('child_id', childId)
-            .single();
-
+        // 3. Get child + filters
+        const child = await prisma.child.findUnique({
+            where: { id: childId },
+            select: { ageAppropriateLevel: true, age: true },
+        });
         if (!child) throw new AppError('Child not found', HTTP_STATUS.NOT_FOUND);
 
-        // 4. Check Approved Channels
+        const filters = await prisma.contentFilter.findUnique({ where: { childId } });
+
+        // 4. Check approved channels
         const isChannelApproved = await this.isChannelApproved(video.channelId, childId);
 
-        // If Strict Mode is ON, only allow if channel is approved OR video is approved
-        if (filters?.strict_mode && !isChannelApproved) {
+        // 5. Strict mode
+        if (filters?.strictMode && !isChannelApproved) {
             return { allowed: false, reason: 'Strict mode: Channel not in approved list' };
         }
 
-        // 5. Check Duration Limits (if available)
-        if (video.durationMinutes && filters?.max_video_duration_minutes) {
-            if (video.durationMinutes > filters.max_video_duration_minutes) {
-                return { allowed: false, reason: `Video is too long (> ${filters.max_video_duration_minutes}m)` };
+        // 6. Duration limit
+        if (video.durationMinutes && filters?.maxVideoDurationMinutes) {
+            if (video.durationMinutes > filters.maxVideoDurationMinutes) {
+                return { allowed: false, reason: `Video is too long (> ${filters.maxVideoDurationMinutes}m)` };
             }
         }
 
-        // 6. Check Blocked Keywords
-        if (filters?.blocked_keywords?.length > 0) {
-            const text = `${video.title} ${video.description || ''} ${video.tags?.join(' ') || ''}`;
-            if (await this.containsBlockedKeywords(text, filters.blocked_keywords)) {
+        // 7. Blocked keywords
+        if (filters?.blockedKeywords && filters.blockedKeywords.length > 0) {
+            const text = `${video.title} ${video.description ?? ''} ${video.tags?.join(' ') ?? ''}`;
+            if (await this.containsBlockedKeywords(text, filters.blockedKeywords)) {
                 return { allowed: false, reason: 'Contains blocked keywords' };
             }
         }
 
-        // 7. Age Appropriate Rules (if not strict mode or as additional check)
-        const ageCheck = await this.checkAgeAppropriateness(child.age_appropriate_level, video);
+        // 8. Age appropriateness
+        const ageCheck = await this.checkAgeAppropriateness(child.ageAppropriateLevel, video);
         if (!ageCheck.allowed) return ageCheck;
 
         return { allowed: true };
     }
 
-    /**
-     * Check if channel is approved
-     */
     async isChannelApproved(channelId: string, childId: string): Promise<boolean> {
-        const { data } = await supabaseAdmin
-            .from('approved_channels')
-            .select('id')
-            .eq('child_id', childId)
-            .eq('channel_id', channelId)
-            .single();
-        return !!data;
+        const approved = await prisma.approvedChannel.findFirst({
+            where: { childId, channelId },
+        });
+        return !!approved;
     }
 
     async checkText(text: string, childId: string): Promise<{ allowed: boolean; reason?: string }> {
-        const { data: filters } = await supabaseAdmin
-            .from('content_filters')
-            .select('blocked_keywords')
-            .eq('child_id', childId)
-            .single();
+        const filters = await prisma.contentFilter.findUnique({
+            where: { childId },
+            select: { blockedKeywords: true },
+        });
 
-        if (filters && filters.blocked_keywords && filters.blocked_keywords.length > 0) {
-            if (await this.containsBlockedKeywords(text, filters.blocked_keywords)) {
+        if (filters?.blockedKeywords && filters.blockedKeywords.length > 0) {
+            if (await this.containsBlockedKeywords(text, filters.blockedKeywords)) {
                 return { allowed: false, reason: 'Contains blocked keywords' };
             }
         }
         return { allowed: true };
     }
 
-    /**
-     * Keyword Blocking Logic
-     */
     async containsBlockedKeywords(text: string, keywords: string[]): Promise<boolean> {
-        const lowerText = text.toLowerCase();
-        return keywords.some(keyword => lowerText.includes(keyword.toLowerCase()));
+        const lower = text.toLowerCase();
+        return keywords.some(kw => lower.includes(kw.toLowerCase()));
     }
 
-    /**
-     * Helper: Age Logic
-     */
-    private async checkAgeAppropriateness(level: string, video: VideoMetadata): Promise<{ allowed: boolean; reason?: string }> {
-        // Basic heuristics based on category or naive duration if not strictly filtered
-        // In real app, this would use YouTube Content Rating or heavy AI classification.
+    async getFilters(childId: string) {
+        let filters = await prisma.contentFilter.findUnique({ where: { childId } });
 
-        // Preschool Rules
+        if (!filters) {
+            const child = await prisma.child.findUnique({ where: { id: childId } });
+            if (!child) throw new AppError('Child not found', HTTP_STATUS.NOT_FOUND);
+
+            filters = await prisma.contentFilter.create({ data: { childId } });
+        }
+
+        return filters;
+    }
+
+    async updateFilters(childId: string, updates: {
+        blockedKeywords?: string[];
+        blockedCategories?: string[];
+        allowedCategories?: string[];
+        maxVideoDurationMinutes?: number;
+        allowComments?: boolean;
+        strictMode?: boolean;
+    }) {
+        await prisma.contentFilter.upsert({
+            where: { childId },
+            update: updates,
+            create: { childId, ...updates },
+        });
+        return true;
+    }
+
+    async blockVideo(childId: string, videoId: string, reason?: string) {
+        return prisma.blockedContent.create({
+            data: { childId, videoId, reason },
+        });
+    }
+
+    async approveChannel(childId: string, channelId: string, channelName: string, approverId: string) {
+        return prisma.approvedChannel.upsert({
+            where: { childId_channelId: { childId, channelId } },
+            update: { approvedBy: approverId, approvedAt: new Date() },
+            create: { childId, channelId, channelName, approvedBy: approverId },
+        });
+    }
+
+    async blockChannel(childId: string, channelId: string, reason?: string) {
+        const { PlaylistService } = await import('./playlist.service');
+
+        await prisma.blockedContent.create({
+            data: {
+                childId,
+                channelId,
+                reason: reason ?? 'Blocked by parent',
+            },
+        });
+
+        await PlaylistService.removeVideosByChannel(childId, channelId);
+    }
+
+    private async checkAgeAppropriateness(
+        level: string,
+        video: VideoMetadata,
+    ): Promise<{ allowed: boolean; reason?: string }> {
         if (level === 'preschool') {
             if (video.durationMinutes && video.durationMinutes > 10) {
                 return { allowed: false, reason: 'Preschool: Max 10 mins' };
             }
-            // Block generic "Entertainment" (24) if not Education (27) or Music (10)? Very naive.
-            // Using placeholder logic:
-            if (video.categoryId && !['27', '10', '1', '29'].includes(video.categoryId)) {
-                // 1=Film, 10=Music, 27=Edu, 29=Nonprofits
-                // return { allowed: false, reason: 'Preschool: Category not educational' };
-            }
-
-            // Keyword safeguard for young kids
-            const unsafeForPreschool = ['scary', 'spooky', 'ghost', 'zombie', 'love', 'kiss', 'dating', 'boyfriend', 'girlfriend'];
-            if (new RegExp(unsafeForPreschool.join('|'), 'i').test(video.title)) {
+            const unsafe = ['scary', 'spooky', 'ghost', 'zombie', 'love', 'kiss', 'dating', 'boyfriend', 'girlfriend'];
+            if (new RegExp(unsafe.join('|'), 'i').test(video.title)) {
                 return { allowed: false, reason: 'Found inappropriate keyword for preschool' };
             }
         }
 
-        // Early Elementary
         if (level === 'early-elementary') {
             if (video.durationMinutes && video.durationMinutes > 15) {
                 return { allowed: false, reason: 'Early Elementary: Max 15 mins' };
@@ -153,72 +176,5 @@ export class ContentFilterService {
         }
 
         return { allowed: true };
-    }
-
-    /**
-     * Manage Filters
-     */
-    async getFilters(childId: string) {
-        let { data, error } = await supabaseAdmin.from('content_filters').select('*').eq('child_id', childId).maybeSingle();
-
-        if (error) throw error;
-
-        if (!data) {
-            // Create default if missing
-            const { data: newFilters, error: insertError } = await supabaseAdmin.from('content_filters').insert({ child_id: childId }).select().single();
-
-            if (insertError) {
-                // Check if it's a foreign key violation (child doesn't exist)
-                if (insertError.code === '23503') {
-                    throw new AppError('Child not found', HTTP_STATUS.NOT_FOUND);
-                }
-                throw insertError;
-            }
-            return newFilters;
-        }
-        return data;
-    }
-
-    async updateFilters(childId: string, updates: any) {
-        const { error } = await supabaseAdmin
-            .from('content_filters')
-            .upsert({ ...updates, child_id: childId, updated_at: new Date() }, { onConflict: 'child_id' });
-        if (error) throw error;
-        return true;
-    }
-
-    /**
-     * Block/Approve Actions
-     */
-    async blockVideo(childId: string, videoId: string, reason?: string) {
-        return supabaseAdmin.from('blocked_content').insert({
-            child_id: childId,
-            video_id: videoId,
-            reason
-        });
-    }
-
-    async approveChannel(childId: string, channelId: string, channelName: string, approverId: string) {
-        return supabaseAdmin.from('approved_channels').upsert({
-            child_id: childId,
-            channel_id: channelId,
-            channel_name: channelName,
-            approved_by: approverId
-        }, { onConflict: 'child_id,channel_id' });
-    }
-
-    async blockChannel(childId: string, channelId: string, reason?: string) {
-        // Import here to avoid circular dependency
-        const { PlaylistService } = await import('./playlist.service');
-
-        // 1. Add to blocked_content table
-        await supabaseAdmin.from('blocked_content').insert({
-            child_id: childId,
-            channel_id: channelId,
-            reason: reason || 'Blocked by parent'
-        });
-
-        // 2. Remove videos from this channel from all playlists
-        await PlaylistService.removeVideosByChannel(childId, channelId);
     }
 }

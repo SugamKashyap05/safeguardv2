@@ -1,0 +1,569 @@
+// Prisma Schema for SafeguardV2
+// Connecting to Supabase PostgreSQL — Auth remains in Supabase, data layer moves to Prisma
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["multiSchema"]
+  engineType      = "library"
+}
+
+datasource db {
+  provider = "postgresql"
+  schemas  = ["public", "auth"]
+}
+
+// ─────────────────────────────────────────────
+//  PARENTS (linked to Supabase auth.users by id)
+// ─────────────────────────────────────────────
+model Parent {
+  id                        String   @id @db.Uuid
+  email                     String   @unique
+  name                      String
+  phoneNumber               String?  @map("phone_number")
+  subscriptionTier          String   @default("free") @map("subscription_tier")
+  isActive                  Boolean  @default(true) @map("is_active")
+  notificationPreferences   Json     @default("{\"email\": true, \"push\": true, \"sms\": false}") @map("notification_preferences")
+  stripeCustomerId          String?  @map("stripe_customer_id")
+  stripeSubscriptionId      String?  @map("stripe_subscription_id")
+  createdAt                 DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt                 DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  // Relations
+  children          Child[]
+  notifications     Notification[]
+  weeklyReports     WeeklyReport[]
+  approvedChannels  ApprovedChannel[]
+  approvedVideos    ApprovedVideo[]
+  approvalRequests  ApprovalRequest[]
+  activityLogs      ActivityLog[]
+
+  @@schema("public")
+  @@map("parents")
+}
+
+// ─────────────────────────────────────────────
+//  CHILDREN
+// ─────────────────────────────────────────────
+model Child {
+  id                  String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  parentId            String    @map("parent_id") @db.Uuid
+  name                String
+  age                 Int
+  avatar              String?
+  avatarConfig        Json?     @map("avatar_config")
+  pinHash             String    @map("pin_hash")
+  ageAppropriateLevel String    @map("age_appropriate_level")
+  preferences         Json      @default("{\"favoriteCategories\": [], \"favoriteChannels\": []}") 
+  isActive            Boolean   @default(true) @map("is_active")
+  pausedUntil         DateTime? @map("paused_until") @db.Timestamptz
+  pauseReason         String?   @map("pause_reason")
+  stars               Int       @default(0)
+  totalStarsEarned    Int       @default(0) @map("total_stars_earned")
+  createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt           DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+
+  // Relations
+  parent            Parent            @relation(fields: [parentId], references: [id], onDelete: Cascade)
+  watchHistory      WatchHistory[]
+  approvedChannels  ApprovedChannel[]
+  blockedContent    BlockedContent[]
+  screenTimeRules   ScreenTimeRule?
+  notifications     Notification[]
+  approvalRequests  ApprovalRequest[]
+  childSessions     ChildSession[]
+  activityLogs      ActivityLog[]
+  contentFilter     ContentFilter?
+  approvedVideos    ApprovedVideo[]
+  playlists         Playlist[]
+  childBadges       ChildBadge[]
+  searchHistory     SearchHistory[]
+  dailyQuests       DailyQuest[]
+  childInventory    ChildInventory[]
+  childNotifications ChildNotification[]
+  devices           Device[]
+  sessionSync       SessionSync?
+  rewardTransactions RewardTransaction[]
+  achievements      Achievement[]
+
+  @@unique([parentId, pinHash], name: "unique_pin_per_parent")
+  @@index([parentId])
+  @@index([age])
+  @@map("children")
+
+  @@schema("public")
+}
+
+// ─────────────────────────────────────────────
+//  WATCH HISTORY
+// ─────────────────────────────────────────────
+model WatchHistory {
+  id              String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  childId         String    @map("child_id") @db.Uuid
+  videoId         String    @map("video_id")
+  videoTitle      String    @map("video_title")
+  channelId       String    @map("channel_id")
+  channelName     String    @map("channel_name")
+  channelThumbnail String?  @map("channel_thumbnail")
+  thumbnail       String?
+  duration        Int?
+  watchedDuration Int?      @map("watched_duration")
+  watchPercentage Int?      @map("watch_percentage")
+  completedWatch  Boolean   @default(false) @map("completed_watch")
+  category        String?
+  wasBlocked      Boolean   @default(false) @map("was_blocked")
+  blockReason     String?   @map("block_reason")
+  watchedAt       DateTime  @default(now()) @map("watched_at") @db.Timestamptz
+
+  child Child @relation(fields: [childId], references: [id], onDelete: Cascade)
+
+  @@index([childId])
+  @@index([watchedAt])
+  @@map("watch_history")
+
+  @@schema("public")
+}
+
+// ─────────────────────────────────────────────
+//  APPROVED CHANNELS
+// ─────────────────────────────────────────────
+model ApprovedChannel {
+  id               String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  childId          String   @map("child_id") @db.Uuid
+  channelId        String   @map("channel_id")
+  channelName      String   @map("channel_name")
+  channelThumbnail String?  @map("channel_thumbnail")
+  approvedBy       String   @map("approved_by") @db.Uuid
+  approvedAt       DateTime @default(now()) @map("approved_at") @db.Timestamptz
+  autoApproved     Boolean  @default(false) @map("auto_approved")
+  notes            String?
+
+  child  Child  @relation(fields: [childId], references: [id], onDelete: Cascade)
+  parent Parent @relation(fields: [approvedBy], references: [id])
+
+  @@unique([childId, channelId])
+  @@index([childId])
+  @@map("approved_channels")
+
+  @@schema("public")
+}
+
+// ─────────────────────────────────────────────
+//  BLOCKED CONTENT
+// ─────────────────────────────────────────────
+model BlockedContent {
+  id          String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  childId     String   @map("child_id") @db.Uuid
+  videoId     String?  @map("video_id")
+  channelId   String?  @map("channel_id")
+  blockedAt   DateTime @default(now()) @map("blocked_at") @db.Timestamptz
+  reason      String?
+  isEmergency Boolean  @default(false) @map("is_emergency")
+
+  child Child @relation(fields: [childId], references: [id], onDelete: Cascade)
+
+  @@index([childId])
+  @@schema("public")
+  @@map("blocked_content")
+}
+
+// ─────────────────────────────────────────────
+//  SCREEN TIME RULES
+// ─────────────────────────────────────────────
+model ScreenTimeRule {
+  id                    String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  childId               String   @unique @map("child_id") @db.Uuid
+  dailyLimitMinutes     Int      @default(60) @map("daily_limit_minutes")
+  weekdayLimitMinutes   Int?     @map("weekday_limit_minutes")
+  weekendLimitMinutes   Int?     @map("weekend_limit_minutes")
+  allowedTimeWindows    Json     @default("[]") @map("allowed_time_windows")
+  bedtimeMode           Json     @default("{\"enabled\": false}") @map("bedtime_mode")
+  breakReminderEnabled  Boolean  @default(true) @map("break_reminder_enabled")
+  breakReminderInterval Int      @default(30) @map("break_reminder_interval")
+  todayUsageMinutes     Int      @default(0) @map("today_usage_minutes")
+  lastResetDate         DateTime @default(now()) @map("last_reset_date") @db.Date
+  createdAt             DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt             DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  child Child @relation(fields: [childId], references: [id], onDelete: Cascade)
+
+  @@index([childId])
+  @@schema("public")
+  @@map("screen_time_rules")
+}
+
+// ─────────────────────────────────────────────
+//  NOTIFICATIONS
+// ─────────────────────────────────────────────
+model Notification {
+  id        String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  parentId  String    @map("parent_id") @db.Uuid
+  childId   String?   @map("child_id") @db.Uuid
+  type      String
+  title     String
+  message   String
+  priority  String    @default("medium")
+  data      Json      @default("{}")
+  isRead    Boolean   @default(false) @map("is_read")
+  readAt    DateTime? @map("read_at") @db.Timestamptz
+  actionUrl String?   @map("action_url")
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  parent Parent  @relation(fields: [parentId], references: [id], onDelete: Cascade)
+  child  Child?  @relation(fields: [childId], references: [id], onDelete: Cascade)
+
+  @@index([parentId])
+  @@index([createdAt(sort: Desc)])
+  @@schema("public")
+  @@map("notifications")
+}
+
+// ─────────────────────────────────────────────
+//  APPROVAL REQUESTS
+// ─────────────────────────────────────────────
+model ApprovalRequest {
+  id               String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  childId          String    @map("child_id") @db.Uuid
+  requestType      String    @map("request_type")
+  videoId          String?   @map("video_id")
+  videoTitle       String?   @map("video_title")
+  videoThumbnail   String?   @map("video_thumbnail")
+  channelId        String?   @map("channel_id")
+  channelName      String?   @map("channel_name")
+  channelThumbnail String?   @map("channel_thumbnail")
+  status           String    @default("pending")
+  requestedAt      DateTime  @default(now()) @map("requested_at") @db.Timestamptz
+  reviewedAt       DateTime? @map("reviewed_at") @db.Timestamptz
+  reviewedBy       String?   @map("reviewed_by") @db.Uuid
+  parentNotes      String?   @map("parent_notes")
+  childMessage     String?   @map("child_message")
+
+  child    Child    @relation(fields: [childId], references: [id], onDelete: Cascade)
+  reviewer Parent?  @relation(fields: [reviewedBy], references: [id])
+
+  @@index([childId])
+  @@index([status])
+  @@schema("public")
+  @@map("approval_requests")
+}
+
+// ─────────────────────────────────────────────
+//  CHILD SESSIONS
+// ─────────────────────────────────────────────
+model ChildSession {
+  id        String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  childId   String   @map("child_id") @db.Uuid
+  tokenHash String   @map("token_hash")
+  expiresAt DateTime @map("expires_at") @db.Timestamptz
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  child Child @relation(fields: [childId], references: [id], onDelete: Cascade)
+
+  @@index([childId])
+  @@index([tokenHash])
+  @@schema("public")
+  @@map("child_sessions")
+}
+
+// ─────────────────────────────────────────────
+//  ACTIVITY LOGS
+// ─────────────────────────────────────────────
+model ActivityLog {
+  id        String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  childId   String?  @map("child_id") @db.Uuid
+  parentId  String?  @map("parent_id") @db.Uuid
+  type      String
+  data      Json     @default("{}")
+  timestamp DateTime @default(now()) @db.Timestamptz
+
+  child  Child?  @relation(fields: [childId], references: [id], onDelete: Cascade)
+  parent Parent? @relation(fields: [parentId], references: [id], onDelete: Cascade)
+
+  @@index([childId])
+  @@index([type])
+  @@schema("public")
+  @@map("activity_logs")
+}
+
+// ─────────────────────────────────────────────
+//  CONTENT FILTERS
+// ─────────────────────────────────────────────
+model ContentFilter {
+  id                    String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  childId               String   @unique @map("child_id") @db.Uuid
+  blockedKeywords       String[] @default([]) @map("blocked_keywords")
+  blockedCategories     String[] @default([]) @map("blocked_categories")
+  allowedCategories     String[] @default([]) @map("allowed_categories")
+  maxVideoDurationMinutes Int    @default(15) @map("max_video_duration_minutes")
+  allowComments         Boolean  @default(false) @map("allow_comments")
+  strictMode            Boolean  @default(true) @map("strict_mode")
+  createdAt             DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt             DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  child Child @relation(fields: [childId], references: [id], onDelete: Cascade)
+
+  @@index([childId])
+  @@schema("public")
+  @@map("content_filters")
+}
+
+// ─────────────────────────────────────────────
+//  APPROVED VIDEOS
+// ─────────────────────────────────────────────
+model ApprovedVideo {
+  id             String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  childId        String   @map("child_id") @db.Uuid
+  videoId        String   @map("video_id")
+  videoTitle     String   @map("video_title")
+  videoThumbnail String?  @map("video_thumbnail")
+  approvedBy     String   @map("approved_by") @db.Uuid
+  approvedAt     DateTime @default(now()) @map("approved_at") @db.Timestamptz
+  notes          String?
+
+  child  Child  @relation(fields: [childId], references: [id], onDelete: Cascade)
+  parent Parent @relation(fields: [approvedBy], references: [id])
+
+  @@unique([childId, videoId])
+  @@index([childId])
+  @@map("approved_videos")
+
+  @@schema("public")
+}
+
+// ─────────────────────────────────────────────
+//  WEEKLY REPORTS
+// ─────────────────────────────────────────────
+model WeeklyReport {
+  id              String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  parentId        String   @map("parent_id") @db.Uuid
+  weekStartDate   DateTime @map("week_start_date") @db.Date
+  weekEndDate     DateTime @map("week_end_date") @db.Date
+  summary         Json     @default("{}")
+  childrenReports Json     @default("[]") @map("children_reports")
+  generatedAt     DateTime @default(now()) @map("generated_at") @db.Timestamptz
+  isViewed        Boolean  @default(false) @map("is_viewed")
+
+  parent Parent @relation(fields: [parentId], references: [id], onDelete: Cascade)
+
+  @@unique([parentId, weekStartDate])
+  @@index([parentId])
+  @@schema("public")
+  @@map("weekly_reports")
+}
+
+// ─────────────────────────────────────────────
+//  DEVICES
+// ─────────────────────────────────────────────
+model Device {
+  id          String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  childId     String   @map("child_id") @db.Uuid
+  deviceId    String   @map("device_id")
+  deviceName  String   @map("device_name")
+  deviceType  String   @default("unknown") @map("device_type")
+  platform    String?
+  pushToken   String?  @map("push_token")
+  isActive    Boolean  @default(true) @map("is_active")
+  lastActive  DateTime @default(now()) @map("last_active") @db.Timestamptz
+  registeredAt DateTime @default(now()) @map("registered_at") @db.Timestamptz
+
+  child Child @relation(fields: [childId], references: [id], onDelete: Cascade)
+
+  @@unique([childId, deviceId])
+  @@schema("public")
+  @@map("devices")
+}
+
+// ─────────────────────────────────────────────
+//  SESSION SYNC
+// ─────────────────────────────────────────────
+model SessionSync {
+  childId      String   @id @map("child_id") @db.Uuid
+  videoId      String?  @map("video_id")
+  position     Int      @default(0)
+  deviceId     String?  @map("device_id")
+  startedAt    DateTime @default(now()) @map("started_at") @db.Timestamptz
+  watchQueue   String[] @default([]) @map("watch_queue")
+  lastSyncedAt DateTime @default(now()) @map("last_synced_at") @db.Timestamptz
+
+  child Child @relation(fields: [childId], references: [id], onDelete: Cascade)
+
+  @@schema("public")
+  @@map("session_sync")
+}
+
+// ─────────────────────────────────────────────
+//  PLAYLISTS
+// ─────────────────────────────────────────────
+model Playlist {
+  id          String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  childId     String   @map("child_id") @db.Uuid
+  name        String
+  description String?
+  type        String
+  isDefault   Boolean  @default(false) @map("is_default")
+  thumbnail   String?
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  child Child          @relation(fields: [childId], references: [id], onDelete: Cascade)
+  items PlaylistItem[]
+
+  @@index([childId])
+  @@schema("public")
+  @@map("playlists")
+}
+
+// ─────────────────────────────────────────────
+//  PLAYLIST ITEMS
+// ─────────────────────────────────────────────
+model PlaylistItem {
+  id            String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  playlistId    String   @map("playlist_id") @db.Uuid
+  videoId       String   @map("video_id")
+  position      Int
+  addedAt       DateTime @default(now()) @map("added_at") @db.Timestamptz
+  videoMetadata Json     @default("{}") @map("video_metadata")
+
+  playlist Playlist @relation(fields: [playlistId], references: [id], onDelete: Cascade)
+
+  @@unique([playlistId, videoId])
+  @@index([playlistId])
+  @@schema("public")
+  @@map("playlist_items")
+}
+
+// ─────────────────────────────────────────────
+//  CHILD BADGES
+// ─────────────────────────────────────────────
+model ChildBadge {
+  id       String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  childId  String   @map("child_id") @db.Uuid
+  badgeId  String   @map("badge_id")
+  earnedAt DateTime @default(now()) @map("earned_at") @db.Timestamptz
+  metadata Json     @default("{}")
+
+  child Child @relation(fields: [childId], references: [id], onDelete: Cascade)
+
+  @@unique([childId, badgeId])
+  @@index([childId])
+  @@schema("public")
+  @@map("child_badges")
+}
+
+// ─────────────────────────────────────────────
+//  SEARCH HISTORY
+// ─────────────────────────────────────────────
+model SearchHistory {
+  id             String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  childId        String?  @map("child_id") @db.Uuid
+  query          String
+  count          Int      @default(1)
+  lastSearchedAt DateTime @default(now()) @map("last_searched_at") @db.Timestamptz
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  child Child? @relation(fields: [childId], references: [id], onDelete: Cascade)
+
+  @@index([childId])
+  @@schema("public")
+  @@map("search_history")
+}
+
+// ─────────────────────────────────────────────
+//  DAILY QUESTS
+// ─────────────────────────────────────────────
+model DailyQuest {
+  id           String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  childId      String?  @map("child_id") @db.Uuid
+  date         DateTime @default(now()) @db.Date
+  type         String
+  target       Int
+  progress     Int      @default(0)
+  isCompleted  Boolean  @default(false) @map("is_completed")
+  rewardStars  Int      @default(5) @map("reward_stars")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  child Child? @relation(fields: [childId], references: [id], onDelete: Cascade)
+
+  @@index([childId])
+  @@schema("public")
+  @@map("daily_quests")
+}
+
+// ─────────────────────────────────────────────
+//  CHILD INVENTORY
+// ─────────────────────────────────────────────
+model ChildInventory {
+  childId    String   @map("child_id") @db.Uuid
+  itemId     String   @map("item_id")
+  itemType   String   @map("item_type")
+  acquiredAt DateTime @default(now()) @map("acquired_at") @db.Timestamptz
+
+  child Child @relation(fields: [childId], references: [id], onDelete: Cascade)
+
+  @@id([childId, itemId])
+  @@map("child_inventory")
+
+  @@schema("public")
+}
+
+// ─────────────────────────────────────────────
+//  CHILD NOTIFICATIONS
+// ─────────────────────────────────────────────
+model ChildNotification {
+  id        String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  childId   String   @map("child_id") @db.Uuid
+  type      String
+  title     String?
+  message   String?
+  data      Json?
+  isRead    Boolean  @default(false) @map("is_read")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  child Child @relation(fields: [childId], references: [id], onDelete: Cascade)
+
+  @@index([childId])
+  @@schema("public")
+  @@map("child_notifications")
+}
+
+// ─────────────────────────────────────────────
+//  REWARD TRANSACTIONS
+// ─────────────────────────────────────────────
+model RewardTransaction {
+  id        String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  childId   String   @map("child_id") @db.Uuid
+  type      String   // 'award' | 'deduct'
+  amount    Int
+  balance   Int      @default(0)
+  reason    String
+  metadata  Json     @default("{}")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  child Child @relation(fields: [childId], references: [id], onDelete: Cascade)
+
+  @@index([childId])
+  @@schema("public")
+  @@map("reward_transactions")
+}
+
+// ─────────────────────────────────────────────
+//  ACHIEVEMENTS
+// ─────────────────────────────────────────────
+model Achievement {
+  id            String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  childId       String   @map("child_id") @db.Uuid
+  achievementId String   @map("achievement_id")
+  name          String
+  description   String
+  badge         String?
+  starsAwarded  Int      @default(0) @map("stars_awarded")
+  earnedAt      DateTime @default(now()) @map("earned_at") @db.Timestamptz
+
+  child Child @relation(fields: [childId], references: [id], onDelete: Cascade)
+
+  @@unique([childId, achievementId])
+  @@index([childId])
+  @@map("achievements")
+
+  @@schema("public")
+}

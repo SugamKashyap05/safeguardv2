@@ -38,16 +38,16 @@ export class ContentFilterController {
 
         // Map Age Level
         let ageRestriction = 'preschool';
-        if (child.age_appropriate_level === 'early-elementary') ageRestriction = 'kids';
-        else if (child.age_appropriate_level === 'elementary') ageRestriction = 'tweens';
-        else if (child.age_appropriate_level === 'teens') ageRestriction = 'teens';
-        else if (child.age_appropriate_level === 'preschool') ageRestriction = 'preschool';
+        if (child.ageAppropriateLevel === 'early-elementary') ageRestriction = 'kids';
+        else if (child.ageAppropriateLevel === 'elementary') ageRestriction = 'tweens';
+        else if (child.ageAppropriateLevel === 'teens') ageRestriction = 'teens';
+        else if (child.ageAppropriateLevel === 'preschool') ageRestriction = 'preschool';
 
         // Map Output
         const mappedFilters = {
             ageRestriction,
-            blockedCategories: filters.blocked_categories || [],
-            safeSearch: filters.strict_mode ?? true,
+            blockedCategories: (filters as any).blockedCategories || [],
+            safeSearch: (filters as any).strictMode ?? true,
         };
 
         return ApiResponse.success(res, mappedFilters, 'Filter settings retrieved');
@@ -68,18 +68,18 @@ export class ContentFilterController {
             else if (ageRestriction === 'tweens') level = 'elementary';
 
             // We use 'any' cast here because updateChild expects Partial<Child> but we are sending a mapped string that might not be in the type definition yet if we didn't update types
-            await childService.updateChild(childId, req.user.id, { age_appropriate_level: level } as any);
+            await childService.updateChild(childId, req.user.id, { ageAppropriateLevel: level } as any);
         }
 
         // 2. Update Content Filters Table
         const filterUpdates: any = { ...otherUpdates };
 
         if (blockedCategories) {
-            filterUpdates.blocked_categories = blockedCategories;
+            filterUpdates.blockedCategories = blockedCategories;
         }
 
         if (safeSearch !== undefined) {
-            filterUpdates.strict_mode = safeSearch;
+            filterUpdates.strictMode = safeSearch;
         }
 
         if (Object.keys(filterUpdates).length > 0) {

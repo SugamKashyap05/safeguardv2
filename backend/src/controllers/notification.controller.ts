@@ -11,29 +11,29 @@ export class NotificationController {
         // @ts-ignore
         const parentId = req.user.id;
         const { page, limit } = req.query;
-        const result = await service.getAll(parentId, Number(page) || 1, Number(limit) || 20);
+        const result = await service.getForParent(parentId, Number(limit) || 20);
         return ApiResponse.success(res, result);
     }
 
     static async getUnreadCount(req: Request, res: Response) {
         // @ts-ignore
         const parentId = req.user.id;
-        const result = await service.getUnreadCount(parentId);
-        return ApiResponse.success(res, result);
+        const unread = await service.getUnread(parentId);
+        return ApiResponse.success(res, { count: unread.length });
     }
 
     static async markRead(req: Request, res: Response) {
         const { id } = req.params;
         // @ts-ignore
         const parentId = req.user.id;
-        await service.markAsRead(id, parentId);
+        await service.markRead(id, parentId);
         return ApiResponse.success(res, null, 'Marked as read');
     }
 
     static async markAllRead(req: Request, res: Response) {
         // @ts-ignore
         const parentId = req.user.id;
-        await service.markAllAsRead(parentId);
+        await service.markAllRead(parentId);
         return ApiResponse.success(res, null, 'All marked as read');
     }
 

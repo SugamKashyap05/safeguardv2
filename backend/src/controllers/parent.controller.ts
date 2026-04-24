@@ -19,7 +19,7 @@ export class ParentController {
             // We could throw ForbiddenError here
         }
 
-        const profile = await parentService.getParentProfile(id);
+        const profile = await parentService.getProfile(id);
         return ApiResponse.success(res, profile, 'Parent profile retrieved successfully');
     }
 
@@ -32,7 +32,7 @@ export class ParentController {
             return ApiResponse.error(res, 'Not authenticated', HTTP_STATUS.UNAUTHORIZED);
         }
 
-        const profile = await parentService.getParentProfile(req.user.id);
+        const profile = await parentService.getProfile(req.user.id);
         return ApiResponse.success(res, profile, 'My profile retrieved successfully');
     }
 

@@ -37,11 +37,11 @@ export class AuthService {
             // but the prompt explicitly asks to create profile here.
             // We must ensure the ID and email are available.
             try {
-                await this.parentService.createParentProfile(
-                    authData.user.id,
+                await this.parentService.createProfile({
+                    id: authData.user.id,
                     email,
                     name
-                );
+                });
             } catch (err: any) {
                 // If profile creation fails (e.g. unique constraint), checking if user already exists
                 console.error("Profile creation error or already exists:", err.message);
@@ -66,10 +66,10 @@ export class AuthService {
         if (!data.user) throw new Error("User not found");
 
         // 5. Return user data
-        const parent = await this.parentService.getParentProfile(data.user.id);
+        const parent = await this.parentService.getProfile(data.user.id);
 
         // Check if active
-        if (parent && parent.is_active === false) {
+        if (parent && parent.isActive === false) {
             throw new Error('Account is deactivated');
         }
 

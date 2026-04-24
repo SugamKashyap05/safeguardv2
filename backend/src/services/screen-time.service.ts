@@ -1,329 +1,338 @@
-import { supabaseAdmin } from '../config/supabase';
+import prisma from '../config/prisma';
 import { AppError } from '../utils/AppError';
 import { HTTP_STATUS } from '../utils/httpStatus';
-
-interface TimeWindow {
-    dayOfWeek: number; // 0-6
-    startTime: string; // "HH:MM"
-    endTime: string;   // "HH:MM"
-}
+import { getLocalDateString, getStartOfLocalDay } from '../utils/dateUtils';
+import { socketService } from '../services/websocket.service';
 
 export class ScreenTimeService {
 
-    /**
-     * Get Rules & Usage
-     */
     async getRules(childId: string) {
-        const { data: rules } = await supabaseAdmin
-            .from('screen_time_rules')
-            .select('*')
-            .eq('child_id', childId)
-            .single();
+        let rules = await prisma.screenTimeRule.findUnique({
+            where: { childId },
+        });
 
         if (!rules) {
-            // Create default
-            const { data: newRules, error } = await supabaseAdmin
-                .from('screen_time_rules')
-                .insert({ child_id: childId })
-                .select()
-                .single();
-
-            if (error) {
-                // Handle race condition: if rules were created concurrently
-                if (error.code === '23505') {
-                    const { data: existingRules, error: fetchError } = await supabaseAdmin
-                        .from('screen_time_rules')
-                        .select('*')
-                        .eq('child_id', childId)
-                        .single();
-
-                    if (fetchError) throw fetchError;
-                    return existingRules;
-                }
-                throw error;
-            }
-            return newRules;
+            // Create defaults if missing
+            rules = await prisma.screenTimeRule.create({
+                data: { childId },
+            });
         }
+
         return rules;
     }
 
-    /**
-     * Update Rules
-     */
     async updateRules(childId: string, updates: any) {
-        // Validation logic for time windows could go here
+        // Map snake_case to camelCase for robust handling of legacy or mixed inputs
+        const mappedUpdates: any = { ...updates };
+        
+        const keyMap: Record<string, string> = {
+            'daily_limit_minutes': 'dailyLimitMinutes',
+            'weekday_limit_minutes': 'weekdayLimitMinutes',
+            'weekend_limit_minutes': 'weekendLimitMinutes',
+            'allowed_time_windows': 'allowedTimeWindows',
+            'bedtime_mode': 'bedtimeMode',
+            'break_reminder_enabled': 'breakReminderEnabled',
+            'break_reminder_interval': 'breakReminderInterval',
+            'today_usage_minutes': 'todayUsageMinutes',
+            'last_reset_date': 'lastResetDate'
+        };
 
-        // Prevent overwriting usage stats via general update
-        const { today_usage_minutes, last_reset_date, ...safeUpdates } = updates;
+        Object.entries(keyMap).forEach(([snake, camel]) => {
+            if (updates[snake] !== undefined && updates[camel] === undefined) {
+                mappedUpdates[camel] = updates[snake];
+            }
+        });
 
-        const { error } = await supabaseAdmin
-            .from('screen_time_rules')
-            .update({ ...safeUpdates, updated_at: new Date() })
-            .eq('child_id', childId);
+        // Strict whitelist of allowed fields to prevent Prisma validation errors
+        const allowedFields = [
+            'dailyLimitMinutes',
+            'weekdayLimitMinutes',
+            'weekendLimitMinutes',
+            'allowedTimeWindows',
+            'bedtimeMode',
+            'breakReminderEnabled',
+            'breakReminderInterval',
+            'todayUsageMinutes',
+            'lastResetDate'
+        ];
 
-        if (error) throw error;
-        return true;
+        const cleanUpdates = Object.keys(mappedUpdates)
+            .filter(key => allowedFields.includes(key))
+            .reduce((obj: any, key) => {
+                obj[key] = mappedUpdates[key];
+                return obj;
+            }, {});
+
+        return prisma.screenTimeRule.update({
+            where: { childId },
+            data: cleanUpdates,
+        });
     }
 
-    /**
-     * Check Time Remaining (Minutes)
-     */
-    async checkTimeRemaining(childId: string): Promise<number> {
-        // Use getDetailedStatus to ensure consistency and trigger auto-sync if needed.
-        const stats = await this.getDetailedStatus(childId);
-
-        // However, we still need to check Global Pause / Bedtime which getDetailedStatus might not fully block?
-        // Actually getDetailedStatus returns 'remaining', but does it account for PAUSE?
-        // Let's check getDetailedStatus implementation...
-        // It calculates remaining based on LIMIT - USAGE.
-        // It does NOT check Bedtime/Pause. 
-        // We must re-add those checks.
-
-        const rules = await this.getRules(childId);
-
-        // 1. Check Global Pause
-        const { data: child } = await supabaseAdmin
-            .from('children')
-            .select('is_active, paused_until')
-            .eq('id', childId)
-            .single();
-
-        if (child?.paused_until && new Date(child.paused_until) > new Date()) {
-            return 0; // Paused
-        }
-
-        // 2. Check Allowed Hours
-        if (!this.isWithinAllowedHoursLogic(rules)) {
-            return 0; // Bedtime or Outside Window
-        }
-
-        // 3. Return remaining from consistent stat calculation
-        return stats.remaining;
+    async setPauseStatus(childId: string, isPaused: boolean) {
+        return prisma.child.update({
+            where: { id: childId },
+            data: { 
+                isActive: !isPaused,
+                pauseReason: isPaused ? 'Paused by parent' : null,
+                pausedUntil: null
+            }
+        });
     }
 
-    /**
-     * Get Detailed Status (Spent, Added, Remaining)
-     */
-    async getDetailedStatus(childId: string): Promise<any> {
+    async getDetailedStatus(childId: string) {
         const rules = await this.getRules(childId);
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
 
-        // Fetch today's history to split positive/negative
-        const { data: history } = await supabaseAdmin
-            .from('watch_history')
-            .select('watched_duration')
-            .eq('child_id', childId)
-            .gte('watched_at', today.toISOString());
+        // Reset daily usage column if it's a new day (use LOCAL time)
+        const now = new Date();
+        const todayLocalStr = getLocalDateString(now);
 
-        // Calculate Real Spent vs Bonus
-        let realSpentSeconds = 0;
-        let bonusSeconds = 0;
-        let netSeconds = 0;
+        let lastResetLocalStr: string;
+        if (rules.lastResetDate instanceof Date) {
+            lastResetLocalStr = getLocalDateString(rules.lastResetDate);
+        } else {
+            lastResetLocalStr = String(rules.lastResetDate);
+        }
 
-        if (history) {
-            history.forEach(item => {
-                const d = item.watched_duration || 0;
-                // Net calculation (just sum everything)
-                netSeconds += d;
-
-                // For display separation
-                if (d > 0) realSpentSeconds += d;
-                else bonusSeconds += Math.abs(d);
+        if (lastResetLocalStr !== todayLocalStr) {
+            await prisma.screenTimeRule.update({
+                where: { childId },
+                data: { todayUsageMinutes: 0, lastResetDate: now },
             });
         }
 
-        const realSpentMinutes = Math.ceil(realSpentSeconds / 60);
-        const bonusMinutes = Math.floor(bonusSeconds / 60);
+        // Calculate actual usage from WatchHistory for TODAY
+        const startOfToday = getStartOfLocalDay();
 
-        // Net Usage based on total seconds (matches updateDailyUsage logic)
-        const netUsageMinutes = Math.max(0, Math.ceil(netSeconds / 60));
+        const history = await prisma.watchHistory.findMany({
+            where: {
+                childId,
+                watchedAt: { gte: startOfToday },
+                wasBlocked: false,
+            },
+            select: { watchedDuration: true },
+        });
 
-        // SYNC: If stored usage differs from calculated usage, update DB to match reality.
-        // This fixes the "Parent sees 19m, Child sees 34m" bug.
-        if (Math.abs((rules.today_usage_minutes || 0) - netUsageMinutes) > 1) {
-            console.log(`🔄 Syncing screen time usage: DB=${rules.today_usage_minutes} vs CALC=${netUsageMinutes}`);
-            // Fire and forget update
-            supabaseAdmin
-                .from('screen_time_rules')
-                .update({ today_usage_minutes: netUsageMinutes })
-                .eq('child_id', childId)
-                .then(({ error }) => {
-                    if (error) console.error('Failed to sync usage', error);
-                });
-        }
+        const totalUsedSeconds = history.reduce((sum, h) => sum + (h.watchedDuration ?? 0), 0);
+        const todayUsage = totalUsedSeconds / 60; // Fractional minutes
 
-        // Limits
-        const day = new Date().getDay();
-        const isWeekend = day === 0 || day === 6;
-        let limit = rules.daily_limit_minutes;
-        if (isWeekend && rules.weekend_limit_minutes) limit = rules.weekend_limit_minutes;
-        else if (!isWeekend && rules.weekday_limit_minutes) limit = rules.weekday_limit_minutes;
+        // Determine limit for today
+        const dayOfWeek = new Date().getDay();
+        const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+        const limit = isWeekend
+            ? (rules.weekendLimitMinutes ?? rules.dailyLimitMinutes)
+            : (rules.weekdayLimitMinutes ?? rules.dailyLimitMinutes);
 
-        const remaining = Math.max(0, limit - netUsageMinutes);
+        // Get Child overall status (isPaused)
+        const child = await prisma.child.findUnique({
+            where: { id: childId },
+            select: { isActive: true, pauseReason: true }
+        });
 
-        return {
-            remaining,
-            spent: realSpentMinutes,
-            added: bonusMinutes,
-            limit
-        };
-    }
-
-    /**
-     * Increment Usage
-     */
-    async incrementUsage(childId: string, minutes: number) {
-        // Atomic increment? Supabase doesn't have easy atomic increment via JS client without RPC.
-        // We'll read-then-update for MVP or ideally use RPC.
-        // Let's use a simple RPC or just read-update (risk of race condition but acceptable for MVP stats).
-        // Actually, we can check if we can do `today_usage_minutes = today_usage_minutes + x`? No.
-
-        const rules = await this.getRules(childId);
-        const newUsage = (rules.today_usage_minutes || 0) + minutes;
-
-        // Check if day changed? The schema has `last_reset_date`.
-        const todayStr = new Date().toISOString().split('T')[0];
-        let updateData: any = { today_usage_minutes: newUsage };
-
-        if (rules.last_reset_date !== todayStr) {
-            updateData = {
-                today_usage_minutes: minutes,
-                last_reset_date: todayStr
+        // Auto-pause child if time has run out and child is not already paused
+        const remaining = limit - todayUsage;
+        if (remaining <= 0 && child && child.isActive) {
+            await this.setPauseStatus(childId, true);
+            // Update child status after pausing
+            const updatedChild = await prisma.child.findUnique({
+                where: { id: childId },
+                select: { isActive: true }
+            });
+            return {
+                remaining: 0,
+                used: todayUsage,
+                limit: limit,
+                isPaused: true
             };
         }
 
-        await supabaseAdmin
-            .from('screen_time_rules')
-            .update(updateData)
-            .eq('child_id', childId);
+        return {
+            remaining: Math.max(0, remaining),
+            used: todayUsage,
+            limit: limit,
+            isPaused: child ? !child.isActive : false
+        };
     }
 
-    /**
-     * Grant Extra Time
-     */
-    /**
-     * Grant Extra Time
-     */
     async grantExtraTime(childId: string, minutes: number) {
+        // Implement logic to temporarily increase today's limit
+        // Or track extra granted time separately
+        return;
+    }
+
+    async checkAndUpdateUsage(childId: string, additionalMinutes: number): Promise<{
+        allowed: boolean;
+        remainingMinutes: number;
+        limitReached: boolean;
+    }> {
         const rules = await this.getRules(childId);
 
-        // 1. Get a valid channel ID for the FK constraint
-        // Try history first (most likely to succeed for active user)
-        let channelId = 'system_override'; // Fallback if no FK constraint (unlikely)
+        // Reset daily usage if it's a new day (use LOCAL time, not UTC)
+        const now = new Date();
+        const todayLocalStr = `${now.getFullYear()}-${(now.getMonth() + 1).toString().padStart(2, '0')}-${now.getDate().toString().padStart(2, '0')}`;
 
-        const { data: historyItem } = await supabaseAdmin
-            .from('watch_history')
-            .select('channel_id')
-            .not('channel_id', 'is', null)
-            .limit(1)
-            .maybeSingle(); // Use maybeSingle to avoid error if empty
-
-        if (historyItem?.channel_id) {
-            channelId = historyItem.channel_id;
+        let lastResetLocalStr: string;
+        if (rules.lastResetDate instanceof Date) {
+            const resetDate = rules.lastResetDate;
+            lastResetLocalStr = `${resetDate.getFullYear()}-${(resetDate.getMonth() + 1).toString().padStart(2, '0')}-${resetDate.getDate().toString().padStart(2, '0')}`;
         } else {
-            // Try channels table
-            const { data: channelItem } = await supabaseAdmin
-                .from('channels')
-                .select('id')
-                .limit(1)
-                .maybeSingle();
-
-            if (channelItem?.id) channelId = channelItem.id;
+            lastResetLocalStr = String(rules.lastResetDate);
         }
 
-        // 2. Insert "Bonus" log (negative duration) to satisfy recalculation logic
-        const { error: insertError } = await supabaseAdmin.from('watch_history').insert({
-            child_id: childId,
-            channel_id: channelId,
-            video_id: 'system_bonus',
-            video_title: 'Time Bonus',
-            channel_name: 'System',
-            watched_duration: -(minutes * 60), // Negative seconds
-            watched_at: new Date(),
-            completed_watch: true
+        if (lastResetLocalStr !== todayLocalStr) {
+            await prisma.screenTimeRule.update({
+                where: { childId },
+                data: { todayUsageMinutes: 0, lastResetDate: now },
+            });
+            rules.todayUsageMinutes = 0;
+        }
+
+        // Determine limit for today (weekday vs weekend)
+        const dayOfWeek = new Date().getDay();
+        const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+        const limit = isWeekend
+            ? (rules.weekendLimitMinutes ?? rules.dailyLimitMinutes)
+            : (rules.weekdayLimitMinutes ?? rules.dailyLimitMinutes);
+
+        // Calculate actual usage from WatchHistory for consistency with getDetailedStatus
+        const startOfToday = new Date();
+        startOfToday.setHours(0, 0, 0, 0);
+
+        const history = await prisma.watchHistory.findMany({
+            where: {
+                childId,
+                watchedAt: { gte: startOfToday },
+                wasBlocked: false,
+            },
+            select: { watchedDuration: true },
         });
 
-        if (insertError) {
-            console.error('❌ Failed to insert Bonus Time record:', insertError);
-            // Verify if it was FK failure
-            // We continue anyway to update the RULES counter so Parent works, 
-            // but Child Sync might revert it if we don't fix this.
-        } else {
-            console.log(`✅ Bonus Time recorded: -${minutes}m (using channel: ${channelId})`);
+        const totalUsedSeconds = history.reduce((sum, h) => sum + (h.watchedDuration ?? 0), 0);
+        const actualUsage = totalUsedSeconds / 60;
+        const newUsage = actualUsage + additionalMinutes;
+        const allowed = newUsage <= limit;
+
+        // Auto-pause if limit is reached
+        if (newUsage >= limit && allowed) {
+            await this.setPauseStatus(childId, true);
+            // Emit real-time notification
+            socketService.emitToChild(childId, 'settings:updated', {});
         }
 
-        // 2. Immediate Decrement (Result is same as recalc)
-        const newUsage = Math.max(0, (rules.today_usage_minutes || 0) - minutes);
+        // Keep todayUsageMinutes updated for quick reference
+        await prisma.screenTimeRule.update({
+            where: { childId },
+            data: { todayUsageMinutes: newUsage },
+        });
 
-        await supabaseAdmin
-            .from('screen_time_rules')
-            .update({ today_usage_minutes: newUsage })
-            .eq('child_id', childId);
-
-        // Also unpause if paused
-        await supabaseAdmin
-            .from('children')
-            .update({ paused_until: null })
-            .eq('id', childId);
+        return {
+            allowed,
+            // Return exact remaining minutes to avoid precision issues
+            remainingMinutes: Math.max(0, limit - newUsage),
+            limitReached: newUsage >= limit,
+        };
     }
 
-    /**
-     * Pause / Resume
-     */
-    async setPauseStatus(childId: string, paused: boolean) {
-        const updates = paused
-            ? { paused_until: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), pause_reason: 'Parent initiated' } // Pause for 24h default
-            : { paused_until: null, pause_reason: null };
+    async getUsageStatus(childId: string) {
+        const rules = await this.getRules(childId);
 
-        await supabaseAdmin
-            .from('children')
-            .update(updates)
-            .eq('id', childId);
+        // Calculate actual usage from WatchHistory for TODAY
+        const startOfToday = new Date();
+        startOfToday.setHours(0, 0, 0, 0);
+
+        const history = await prisma.watchHistory.findMany({
+            where: {
+                childId,
+                watchedAt: { gte: startOfToday },
+                wasBlocked: false,
+            },
+            select: { watchedDuration: true },
+        });
+
+        const totalUsedSeconds = history.reduce((sum, h) => sum + (h.watchedDuration ?? 0), 0);
+        const todayUsage = totalUsedSeconds / 60;
+
+        const dayOfWeek = new Date().getDay();
+        const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+        const limit = isWeekend
+            ? (rules.weekendLimitMinutes ?? rules.dailyLimitMinutes)
+            : (rules.weekdayLimitMinutes ?? rules.dailyLimitMinutes);
+
+        return {
+            todayUsageMinutes: todayUsage,
+            dailyLimitMinutes: limit,
+            // Return exact remaining minutes to avoid precision issues
+            remainingMinutes: Math.max(0, limit - todayUsage),
+            isLimitReached: todayUsage >= limit,
+            percentUsed: Math.min(100, Math.round((todayUsage / limit) * 100)),
+        };
     }
 
-    /**
-     * Helper: Allowed Time Logic
-     */
-    private isWithinAllowedHoursLogic(rules: any): boolean {
+    async isWithinAllowedWindow(childId: string): Promise<boolean> {
+        const rules = await this.getRules(childId);
+        const windows = rules.allowedTimeWindows as Array<{
+            start: string;
+            end: string;
+            days?: number[];
+        }>;
+
+        if (!windows || windows.length === 0) return true;
+
         const now = new Date();
-        const currentMinutes = now.getHours() * 60 + now.getMinutes();
-        const day = now.getDay(); // 0-6
+        const currentHour = now.getHours();
+        const currentMinute = now.getMinutes();
+        const currentDay = now.getDay();
+        const currentTime = currentHour * 60 + currentMinute;
 
-        // 1. Bedtime Check
-        if (rules.bedtime_mode?.enabled) {
-            const start = this.timeToMinutes(rules.bedtime_mode.startTime);
-            const end = this.timeToMinutes(rules.bedtime_mode.endTime);
+        return windows.some(window => {
+            if (window.days && !window.days.includes(currentDay)) return false;
 
-            // Handle overnight (e.g. 20:00 to 07:00)
-            if (start > end) {
-                if (currentMinutes >= start || currentMinutes < end) return false;
-            } else {
-                if (currentMinutes >= start && currentMinutes < end) return false;
-            }
-        }
+            const [startH, startM] = window.start.split(':').map(Number);
+            const [endH, endM] = window.end.split(':').map(Number);
+            const windowStart = startH * 60 + startM;
+            const windowEnd = endH * 60 + endM;
 
-        // 2. Specific Time Windows (if defined and non-empty)
-        // If allowedTimeWindows is empty, assume allowed all day (except bedtime).
-        // If present, MUST be within one of them.
-        const windows: TimeWindow[] = rules.allowed_time_windows || [];
-        const todayWindows = windows.filter(w => w.dayOfWeek === day);
-
-        if (todayWindows.length > 0) {
-            const inWindow = todayWindows.some(w => {
-                const start = this.timeToMinutes(w.startTime);
-                const end = this.timeToMinutes(w.endTime);
-                return currentMinutes >= start && currentMinutes < end;
-            });
-            if (!inWindow) return false;
-        }
-
-        return true;
+            return currentTime >= windowStart && currentTime <= windowEnd;
+        });
     }
 
-    private timeToMinutes(timeStr: string): number {
-        if (!timeStr) return 0;
-        const [h, m] = timeStr.split(':').map(Number);
-        return h * 60 + m;
+    async isBedtime(childId: string): Promise<boolean> {
+        const rules = await this.getRules(childId);
+        const bedtime = rules.bedtimeMode as { enabled: boolean; start?: string; end?: string };
+
+        if (!bedtime.enabled) return false;
+        if (!bedtime.start || !bedtime.end) return false;
+
+        const now = new Date();
+        const [startH, startM] = bedtime.start.split(':').map(Number);
+        const [endH, endM] = bedtime.end.split(':').map(Number);
+
+        const currentTime = now.getHours() * 60 + now.getMinutes();
+        const bedStart = startH * 60 + startM;
+        const bedEnd = endH * 60 + endM;
+
+        if (bedStart > bedEnd) {
+            // Spans midnight
+            return currentTime >= bedStart || currentTime <= bedEnd;
+        }
+        return currentTime >= bedStart && currentTime <= bedEnd;
+    }
+
+    async recordUsage(childId: string, minutes: number) {
+        await prisma.screenTimeRule.update({
+            where: { childId },
+            data: {
+                todayUsageMinutes: { increment: minutes },
+            },
+        });
+    }
+
+    async pauseForToday(childId: string) {
+        const rules = await this.getRules(childId);
+        await prisma.screenTimeRule.update({
+            where: { childId },
+            data: { todayUsageMinutes: rules.dailyLimitMinutes },
+        });
+        return { success: true };
     }
 }

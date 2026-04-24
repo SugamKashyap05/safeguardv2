@@ -1,194 +1,135 @@
-import { supabaseAdmin } from '../config/supabase';
+import prisma from '../config/prisma';
+import { AppError } from '../utils/AppError';
+import { HTTP_STATUS } from '../utils/httpStatus';
 import bcrypt from 'bcryptjs';
-import { Child } from '../models/types';
-import { validatePin } from '../utils/validators';
-import { PlaylistService } from './playlist.service';
+
+const MAX_CHILDREN: Record<string, number> = {
+    free: 2,
+    premium: 5,
+    family: 10,
+};
 
 export class ChildService {
-    /**
-     * Create a new child profile
-     */
-    async createChild(childData: {
-        parent_id: string;
+
+    async getChildren(parentId: string) {
+        return prisma.child.findMany({
+            where: { parentId },
+            orderBy: { createdAt: 'asc' },
+        });
+    }
+
+    async getChild(childId: string, parentId: string) {
+        const child = await prisma.child.findFirst({
+            where: { id: childId, parentId },
+        });
+        if (!child) throw new AppError('Child not found', HTTP_STATUS.NOT_FOUND);
+        return child;
+    }
+
+    async createChild(parentId: string, data: {
         name: string;
         age: number;
-        pin: string;
         avatar?: string;
-        favorite_categories?: string[];
-        daily_screen_time_limit?: number;
-    }): Promise<Child> {
-        // Validate PIN
-        const pinValidation = validatePin(childData.pin);
-        if (!pinValidation.valid) {
-            throw new Error(pinValidation.message);
+        pin: string;
+    }) {
+        // Check subscription tier limit
+        const parent = await prisma.parent.findUnique({
+            where: { id: parentId },
+            select: { subscriptionTier: true },
+        });
+        if (!parent) throw new AppError('Parent not found', HTTP_STATUS.NOT_FOUND);
+
+        const childCount = await prisma.child.count({
+            where: { parentId, isActive: true },
+        });
+
+        const maxAllowed = MAX_CHILDREN[parent.subscriptionTier] ?? 2;
+        if (childCount >= maxAllowed) {
+            throw new AppError(
+                `Child limit reached for ${parent.subscriptionTier} plan (max ${maxAllowed})`,
+                HTTP_STATUS.FORBIDDEN,
+            );
         }
 
-        // Hash the PIN (12 rounds)
-        const pin_hash = await bcrypt.hash(childData.pin, 12);
+        // Derive age level
+        const ageAppropriateLevel = this.deriveAgeLevel(data.age);
 
-        // Prepare preferences
-        const preferences = {
-            favoriteCategories: childData.favorite_categories || [],
-            favoriteChannels: []
-        };
+        // Hash PIN
+        const pinHash = await bcrypt.hash(data.pin, 10);
 
-        const { data: child, error } = await supabaseAdmin
-            .from('children')
-            .insert({
-                parent_id: childData.parent_id,
-                name: childData.name,
-                age: childData.age,
-                pin_hash,
-                avatar: childData.avatar,
-                preferences
-                // age_appropriate_level set automatically by trigger
-            })
-            .select()
-            .single();
+        const child = await prisma.child.create({
+            data: {
+                parentId,
+                name: data.name,
+                age: data.age,
+                avatar: data.avatar,
+                pinHash,
+                ageAppropriateLevel,
+            },
+        });
 
-        if (error) {
-            if (error.code === '23505') { // unique constraint violation
-                throw new Error('This PIN is already in use for another child');
-            }
-            throw error;
-        }
+        // Create default screen time rules
+        await prisma.screenTimeRule.create({
+            data: { childId: child.id },
+        });
 
-        // Create Screen Time Rules
-        if (childData.daily_screen_time_limit) {
-            await supabaseAdmin.from('screen_time_rules').insert({
-                child_id: child.id,
-                daily_limit_minutes: childData.daily_screen_time_limit
-            });
-        }
-
-        // Create Default Playlists
-        await PlaylistService.createDefaultPlaylists(child.id);
-
-        return child as Child;
+        return child;
     }
 
-    /**
-     * Get Child by ID
-     */
-    async getChild(childId: string, parentId: string) {
-        const { data, error } = await supabaseAdmin
-            .from('children')
-            .select('*')
-            .eq('id', childId)
-            .eq('parent_id', parentId)
-            .single();
+    async updateChild(childId: string, parentId: string, updates: {
+        name?: string;
+        age?: number;
+        avatar?: string;
+        avatarConfig?: any;
+        preferences?: any;
+    }) {
+        const child = await prisma.child.findFirst({ where: { id: childId, parentId } });
+        if (!child) throw new AppError('Child not found', HTTP_STATUS.NOT_FOUND);
 
-        if (error || !data) throw new Error('Child not found');
-        return data as Child;
-    }
-
-    /**
-     * Update Child
-     */
-    async updateChild(childId: string, parentId: string, updates: Partial<Child> & { daily_screen_time_limit?: number }) {
-        // Verify ownership
-        await this.getChild(childId, parentId);
-
-        // Separate screen time limit
-        const { daily_screen_time_limit, ...childUpdates } = updates;
-
-        // Update Child Table
-        if (Object.keys(childUpdates).length > 0) {
-            const { error } = await supabaseAdmin
-                .from('children')
-                .update(childUpdates)
-                .eq('id', childId);
-            if (error) throw error;
+        const data: any = { ...updates };
+        if (updates.age) {
+            data.ageAppropriateLevel = this.deriveAgeLevel(updates.age);
         }
 
-        // Update Screen Time Rules if provided
-        if (daily_screen_time_limit !== undefined) {
-            const { error } = await supabaseAdmin
-                .from('screen_time_rules')
-                .upsert({
-                    child_id: childId,
-                    daily_limit_minutes: daily_screen_time_limit
-                }, { onConflict: 'child_id' }); // Upsert by child_id
-            if (error) throw error;
-        }
-
-        return true;
+        return prisma.child.update({ where: { id: childId }, data });
     }
 
-    /**
-     * Deactivate Child (Soft Delete)
-     */
     async deleteChild(childId: string, parentId: string) {
-        // Verify ownership
-        await this.getChild(childId, parentId);
+        const child = await prisma.child.findFirst({ where: { id: childId, parentId } });
+        if (!child) throw new AppError('Child not found', HTTP_STATUS.NOT_FOUND);
 
-        const { error } = await supabaseAdmin
-            .from('children')
-            .update({ is_active: false })
-            .eq('id', childId);
-
-        if (error) throw error;
-        return true;
+        await prisma.child.update({
+            where: { id: childId },
+            data: { isActive: false },
+        });
+        return { success: true };
     }
 
-    /**
-     * Verify Child PIN
-     */
-    async verifyChildPin(childId: string, pin: string): Promise<boolean> {
-        const { data: child, error } = await supabaseAdmin
-            .from('children')
-            .select('pin_hash')
-            .eq('id', childId)
-            .single();
+    async verifyPin(childId: string, pin: string) {
+        const child = await prisma.child.findUnique({
+            where: { id: childId },
+            select: { pinHash: true, isActive: true },
+        });
+        if (!child) throw new AppError('Child not found', HTTP_STATUS.NOT_FOUND);
+        if (!child.isActive) throw new AppError('Child account is paused', HTTP_STATUS.FORBIDDEN);
 
-        if (error) throw error;
-
-        return await bcrypt.compare(pin, child.pin_hash);
+        return bcrypt.compare(pin, child.pinHash);
     }
 
-    /**
-     * Get children by parent ID
-     */
-    async getChildren(parentId: string): Promise<Child[]> {
-        const { data, error } = await supabaseAdmin
-            .from('children')
-            .select('*')
-            .eq('parent_id', parentId)
-            .order('created_at', { ascending: true });
+    async updatePin(childId: string, parentId: string, newPin: string) {
+        const child = await prisma.child.findFirst({ where: { id: childId, parentId } });
+        if (!child) throw new AppError('Child not found', HTTP_STATUS.NOT_FOUND);
 
-        if (error) throw error;
-        return data as Child[];
+        const pinHash = await bcrypt.hash(newPin, 10);
+        await prisma.child.update({ where: { id: childId }, data: { pinHash } });
+        return { success: true };
     }
 
-    /**
-     * Change Child PIN
-     */
-    async changeChildPin(childId: string, newPin: string, parentId: string) {
-        // Validate New PIN
-        const pinValidation = validatePin(newPin);
-        if (!pinValidation.valid) {
-            throw new Error(pinValidation.message);
-        }
-
-        // Verify parent owns child
-        const { data: child, error: childError } = await supabaseAdmin
-            .from('children')
-            .select('parent_id')
-            .eq('id', childId)
-            .single();
-
-        if (childError || !child) throw new Error('Child not found');
-        if (child.parent_id !== parentId) throw new Error('Unauthorized');
-
-        const pin_hash = await bcrypt.hash(newPin, 12);
-
-        const { error: updateError } = await supabaseAdmin
-            .from('children')
-            .update({ pin_hash, failed_pin_attempts: 0, lockout_until: null })
-            .eq('id', childId);
-
-        if (updateError) throw updateError;
-
-        return true;
+    private deriveAgeLevel(age: number): string {
+        if (age >= 3 && age <= 5) return 'preschool';
+        if (age >= 6 && age <= 7) return 'early-elementary';
+        if (age >= 8 && age <= 10) return 'elementary';
+        if (age >= 11 && age <= 13) return 'tweens';
+        return 'teens';
     }
 }

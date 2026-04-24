@@ -6,12 +6,15 @@ export const env = cleanEnv(process.env, {
     NODE_ENV: str({ choices: ['development', 'test', 'production'], default: 'development' }),
     PORT: port({ default: 5000 }),
 
-    // Supabase
+    // Supabase Auth (Google OAuth — kept for auth.service.ts)
     SUPABASE_URL: str({ desc: 'Your Supabase Project URL' }),
     SUPABASE_ANON_KEY: str({ desc: 'Supabase Anon Key' }),
-    SUPABASE_SERVICE_ROLE_KEY: str({ desc: 'Supabase Service Role Key (Admin)' }),
-    SUPABASE_JWT_SECRET: str({ desc: 'Supabase JWT Secret' }),
-    DATABASE_URL: str({ desc: 'PostgreSQL Connection String' }),
+    SUPABASE_SERVICE_ROLE_KEY: str({ desc: 'Supabase Service Role Key (Auth only)' }),
+    SUPABASE_JWT_SECRET: str({ desc: 'Supabase JWT Secret for verifying parent tokens' }),
+
+    // Prisma Database Connection (connects directly to Supabase PostgreSQL)
+    DATABASE_URL: str({ desc: 'PostgreSQL connection string via pgBouncer (pooled)' }),
+    DIRECT_URL: str({ desc: 'Direct PostgreSQL connection string (for Prisma migrations)' }),
 
     // External Services
     CORS_ORIGIN: str({ default: 'http://localhost:5173' }),
@@ -20,9 +23,9 @@ export const env = cleanEnv(process.env, {
 
     // Security
     SESSION_SECRET: str({ desc: 'Secret for session cookies' }),
-    JWT_SECRET: str({ desc: 'Secret for Child Tokens' }),
+    JWT_SECRET: str({ desc: 'Secret for Child JWT tokens' }),
 
-    // Email (Optional for now but good to have)
+    // Email (Optional)
     EMAIL_SERVICE: str({ default: 'gmail' }),
     EMAIL_USER: str({ default: '' }),
     EMAIL_PASS: str({ default: '' }),

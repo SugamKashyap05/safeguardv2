@@ -23,14 +23,11 @@ export class ChildController {
             return ApiResponse.error(res, 'PIN must be exactly 4 digits', HTTP_STATUS.BAD_REQUEST);
         }
 
-        const child = await childService.createChild({
-            parent_id,
+        const child = await childService.createChild(parent_id, {
             name,
             age: Number(age),
             pin,
-            avatar,
-            favorite_categories: favoriteCategories,
-            daily_screen_time_limit: dailyScreenTimeLimit
+            avatar
         });
 
         return ApiResponse.success(res, child, 'Child profile created successfully', HTTP_STATUS.CREATED);
@@ -82,7 +79,7 @@ export class ChildController {
             return ApiResponse.error(res, 'Missing child_id or pin', HTTP_STATUS.BAD_REQUEST);
         }
 
-        const isValid = await childService.verifyChildPin(child_id, pin);
+        const isValid = await childService.verifyPin(child_id, pin);
 
         if (isValid) {
             return ApiResponse.success(res, { valid: true }, 'PIN verified successfully');
@@ -109,11 +106,11 @@ export class ChildController {
             const { id } = req.params;
             const child = await childService.getChild(id, req.user.id);
             return ApiResponse.success(res, {
-                isActive: child.is_active,
-                pauseReason: child.pause_reason,
-                pausedUntil: child.paused_until,
-                stars: child.stars || 0,
-                totalStars: child.total_stars_earned || 0
+                isActive: child.isActive,
+                pauseReason: child.pauseReason,
+                pausedUntil: child.pausedUntil,
+                stars: (child as any).stars || 0,
+                totalStars: child.totalStarsEarned || 0
             }, 'Child status retrieved');
         }
 
@@ -126,9 +123,9 @@ export class ChildController {
             // We can re-fetch from DB to get latest status
             const child = await childService.getChild(req.child.id, req.child.parentId);
             return ApiResponse.success(res, {
-                isActive: child.is_active,
-                pauseReason: child.pause_reason,
-                pausedUntil: child.paused_until
+                isActive: child.isActive,
+                pauseReason: child.pauseReason,
+                pausedUntil: child.pausedUntil
             }, 'Child status retrieved');
         }
 

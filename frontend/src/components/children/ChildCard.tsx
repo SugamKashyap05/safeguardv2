@@ -23,18 +23,20 @@ export const ChildCard: React.FC<ChildCardProps> = ({
     onManageDevices,
     onManagePlaylists
 }) => {
-    const isPaused = !child.is_active || (child.paused_until && new Date(child.paused_until) > new Date());
+    const active = child.isActive !== undefined ? child.isActive : child.is_active;
+    const pausedUntil = child.pausedUntil || child.paused_until;
+    const isPaused = active === false || (pausedUntil && new Date(pausedUntil) > new Date());
 
     // Use real usage data (with fallback)
     // Local state to support realtime updates
     const { socket } = useSocket() || {};
-    const [usage, setUsage] = React.useState(child.rules?.today_usage_minutes || 0);
-    const limit = child.rules?.daily_limit_minutes || child.daily_screen_time_limit || 60;
+    const [usage, setUsage] = React.useState(child.rules?.todayUsageMinutes || 0);
+    const limit = child.rules?.dailyLimitMinutes || child.daily_screen_time_limit || 60;
     const usagePercent = Math.min((usage / limit) * 100, 100);
 
     React.useEffect(() => {
-        setUsage(child.rules?.today_usage_minutes || 0);
-    }, [child.rules?.today_usage_minutes]);
+        setUsage(child.rules?.todayUsageMinutes || 0);
+    }, [child.rules?.todayUsageMinutes]);
 
     React.useEffect(() => {
         if (!socket) return;

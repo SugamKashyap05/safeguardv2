@@ -95,7 +95,7 @@ export class AuthController {
             return ApiResponse.error(res, 'Child ID and PIN required', HTTP_STATUS.BAD_REQUEST);
         }
 
-        const result = await childAuthService.loginChild(childId, pin);
+        const result = await childAuthService.loginWithPin(childId, pin);
         return ApiResponse.success(res, result, 'Child logged in successfully');
     }
 }

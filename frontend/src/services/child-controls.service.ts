@@ -2,19 +2,19 @@ import { api } from './api';
 
 export interface ScreenTimeRules {
     id: string;
-    child_id: string;
-    daily_limit_minutes: number;
-    weekday_limit_minutes?: number;
-    weekend_limit_minutes?: number;
-    allowed_time_windows: TimeWindow[];
-    bedtime_mode: {
+    childId: string;
+    dailyLimitMinutes: number;
+    weekdayLimitMinutes?: number;
+    weekendLimitMinutes?: number;
+    allowedTimeWindows: TimeWindow[];
+    bedtimeMode: {
         enabled: boolean;
         startTime?: string;
         endTime?: string;
     };
-    break_reminder_enabled: boolean;
-    break_reminder_interval: number;
-    today_usage_minutes: number;
+    breakReminderEnabled: boolean;
+    breakReminderInterval: number;
+    todayUsageMinutes: number;
 }
 
 interface TimeWindow {
@@ -39,11 +39,11 @@ export const ChildControlsService = {
     },
 
     async pauseChild(childId: string): Promise<void> {
-        await api.post(`/screentime/${childId}/pause`);
+        await api.post(`/emergency/pause/${childId}`, { reason: 'Parent Toggle', duration: 0 });
     },
 
     async resumeChild(childId: string): Promise<void> {
-        await api.post(`/screentime/${childId}/resume`);
+        await api.post(`/emergency/resume/${childId}`);
     },
 
     async getRemainingTime(childId: string): Promise<number> {

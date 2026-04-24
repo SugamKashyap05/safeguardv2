@@ -5,6 +5,7 @@ import { YouTubeService } from './youtube.service';
 import { ContentFilterService } from './content-filter.service';
 import { AppError } from '../utils/AppError';
 import { HTTP_STATUS } from '../utils/httpStatus';
+import prisma from '../config/prisma';
 
 const youtubeService = new YouTubeService();
 const filterService = new ContentFilterService();
@@ -35,17 +36,30 @@ export class SafeSearchService {
      * Search Videos with Safety
      */
     async searchVideos(query: string, childId: string) {
+        // 0. Check if child is paused before allowing search
+        const childAccessStatus = await prisma.child.findUnique({
+            where: { id: childId },
+            select: { isActive: true, pauseReason: true }
+        });
+
+        if (!childAccessStatus || !childAccessStatus.isActive) {
+            throw new AppError(
+                childAccessStatus?.pauseReason || 'Access paused by parent',
+                HTTP_STATUS.FORBIDDEN
+            );
+        }
+
         // 1. Sanitize
         const cleanQuery = await this.sanitizeQuery(query, childId);
 
         // 2. Get Child Age for Context
-        const { data: child } = await supabaseAdmin
+        const { data: ageData } = await supabaseAdmin
             .from('children')
             .select('age_appropriate_level')
             .eq('id', childId)
-            .single();
+            .single() as any;
 
-        const ageLevel = child?.age_appropriate_level || 'all';
+        const ageLevel = ageData?.age_appropriate_level || 'all';
 
         // 3. Search YouTube
         // YouTubeService already has safeSearch: 'strict'

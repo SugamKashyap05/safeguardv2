@@ -1,32 +1,56 @@
-import { supabaseAdmin } from '../config/supabase';
+import prisma from '../config/prisma';
+import { AppError } from '../utils/AppError';
+import { HTTP_STATUS } from '../utils/httpStatus';
 
 export class SyncService {
 
-    // Sync Progress
     async syncWatchProgress(childId: string, videoId: string, position: number, deviceId: string) {
-        const { error } = await supabaseAdmin
-            .from('session_sync')
-            .upsert({
-                child_id: childId,
-                video_id: videoId,
-                position: position,
-                device_id: deviceId, // The device reporting the status
-                started_at: new Date(),
-                last_synced_at: new Date()
-            }, { onConflict: 'child_id' });
+        // Check if child is paused before allowing sync
+        const child = await prisma.child.findUnique({
+            where: { id: childId },
+            select: { isActive: true, pauseReason: true }
+        });
 
-        if (error) throw error;
+        if (!child || !child.isActive) {
+            throw new AppError(
+                child?.pauseReason || 'Access paused by parent',
+                HTTP_STATUS.FORBIDDEN
+            );
+        }
+
+        await prisma.sessionSync.upsert({
+            where: { childId },
+            create: {
+                childId,
+                videoId,
+                position,
+                deviceId,
+                startedAt: new Date(),
+                lastSyncedAt: new Date(),
+            },
+            update: {
+                videoId,
+                position,
+                deviceId,
+                lastSyncedAt: new Date(),
+            },
+        });
     }
 
-    // Get Active Session
     async getActiveSession(childId: string) {
-        const { data, error } = await supabaseAdmin
-            .from('session_sync')
-            .select('*')
-            .eq('child_id', childId)
-            .single();
+        // Check if child is paused before returning active session
+        const child = await prisma.child.findUnique({
+            where: { id: childId },
+            select: { isActive: true, pauseReason: true }
+        });
 
-        if (error && error.code !== 'PGRST116') throw error; // Ignore no rows found
-        return data;
+        if (!child || !child.isActive) {
+            throw new AppError(
+                child?.pauseReason || 'Access paused by parent',
+                HTTP_STATUS.FORBIDDEN
+            );
+        }
+
+        return prisma.sessionSync.findUnique({ where: { childId } });
     }
 }

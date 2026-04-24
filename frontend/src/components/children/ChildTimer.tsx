@@ -5,7 +5,13 @@ import { api } from '../../services/api';
 import { useSocket } from '../../contexts/SocketContext';
 
 export const ChildTimer = ({ childId, onTimeExpire }: { childId: string; onTimeExpire?: () => void }) => {
-    const [stats, setStats] = useState<{ minutes: number; spent: number; added: number; limit: number } | null>(null);
+    const [stats, setStats] = useState<{ 
+        minutes: number; 
+        spent: number; 
+        added: number; 
+        limit: number;
+        isPaused?: boolean;
+    } | null>(null);
     const [mood, setMood] = useState<'happy' | 'sleepy' | 'asleep'>('happy');
     const [isChecking, setIsChecking] = useState(false);
     const [isOpen, setIsOpen] = useState(false);
@@ -22,20 +28,32 @@ export const ChildTimer = ({ childId, onTimeExpire }: { childId: string; onTimeE
             setStats(data);
 
             // Sync local countdown with drift check
-            const serverSeconds = (data.minutes * 60);
+            const serverSeconds = Math.floor(data.minutes * 60); // Use floor to avoid fractional seconds
 
-            // Only force update if drift is significant (> 1 minute discrepancy)
+            // Only force update if drift is significant (> 30 seconds discrepancy)
             // Or if we never initialized (secondsLeft === 0)
-            if (Math.abs(serverSeconds - secondsLeft) > 60 || secondsLeft === 0) {
+            // Or if the server time is SUBSTANTIALLY different (e.g. parent added time)
+            // Or if server reports time expired (0 seconds) - this is critical for auto-pause
+            // Use more conservative thresholds to prevent reset loops
+            const shouldSync =
+                secondsLeft === 0 ||
+                serverSeconds === 0 || // Time expired on server - sync to 0
+                serverSeconds > secondsLeft + 120 || // Parent added significant time
+                Math.abs(serverSeconds - secondsLeft) > 30; // Moderate drift
+
+            if (shouldSync) {
                 setSecondsLeft(serverSeconds);
             }
 
-            // Determine Mood
-            if (data.minutes === 0) {
+            // Determine Mood - use seconds for precise comparison
+            const remainingSeconds = data.minutes * 60;
+            const isPaused = data.isPaused === true;
+
+            if (remainingSeconds <= 0.5 || isPaused) { // Lock if less than half second or paused
                 setMood('asleep');
-                if (onTimeExpire) onTimeExpire();
+                if (onTimeExpire && !isPaused) onTimeExpire();
             }
-            else if (data.minutes <= 5) setMood('sleepy');
+            else if (remainingSeconds <= 300) setMood('sleepy'); // 5 minutes or less
             else setMood('happy');
 
         } catch (err) {
@@ -47,7 +65,8 @@ export const ChildTimer = ({ childId, onTimeExpire }: { childId: string; onTimeE
 
     useEffect(() => {
         checkTime();
-        const interval = setInterval(checkTime, 60000); // Poll every minute
+        // Poll every 55 seconds to avoid conflict with minute boundaries
+        const interval = setInterval(checkTime, 55000);
 
         if (socket) {
             console.log('🔌 ChildTimer: Socket Listening');
@@ -67,16 +86,100 @@ export const ChildTimer = ({ childId, onTimeExpire }: { childId: string; onTimeE
         };
     }, [childId, socket]);
 
-    // Local Countdown Effect
+    // Local Countdown Effect - Fixed to prevent drift
     useEffect(() => {
         if (secondsLeft <= 0) return;
 
-        const timer = setInterval(() => {
-            setSecondsLeft(prev => Math.max(0, prev - 1));
-        }, 1000);
+        let startTime: number;
+        let expected: number;
+        let timer: NodeJS.Timeout;
 
-        return () => clearInterval(timer);
+        const tick = () => {
+            const now = Date.now();
+            const elapsed = now - startTime;
+
+            // Calculate how many seconds should have passed
+            const secondsPassed = Math.floor(elapsed / 1000);
+            const newSecondsLeft = Math.max(0, secondsLeft - secondsPassed);
+
+            if (newSecondsLeft <= 0) {
+                setSecondsLeft(0);
+                checkTime(); // Confirm with server
+                return;
+            }
+
+            setSecondsLeft(newSecondsLeft);
+
+            // Schedule next tick with precise timing
+            expected += 1000;
+            const drift = now - expected;
+            const nextTick = Math.max(0, 1000 - drift);
+
+            timer = setTimeout(tick, nextTick);
+        };
+
+        startTime = Date.now();
+        expected = startTime + 1000;
+        timer = setTimeout(tick, 1000);
+
+        return () => {
+            if (timer) clearTimeout(timer);
+        };
     }, [secondsLeft]);
+
+    // --- PREMIUM AUDIO FEEDBACK (Procedural Snoring) ---
+    useEffect(() => {
+        let audioContext: AudioContext | null = null;
+        let oscillator: OscillatorNode | null = null;
+        let gainNode: GainNode | null = null;
+
+        if (mood === 'asleep') {
+            const startSnoring = () => {
+                try {
+                    audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+                    oscillator = audioContext.createOscillator();
+                    gainNode = audioContext.createGain();
+
+                    oscillator.type = 'sine';
+                    oscillator.frequency.setValueAtTime(40, audioContext.currentTime); // Low bass breathe
+
+                    // Snoring rhythm (Inhale/Exhale)
+                    const now = audioContext.currentTime;
+                    for (let i = 0; i < 100; i++) {
+                        const time = now + i * 4;
+                        // Inhale
+                        gainNode.gain.exponentialRampToValueAtTime(0.01, time);
+                        gainNode.gain.exponentialRampToValueAtTime(0.05, time + 2);
+                        // Exhale
+                        gainNode.gain.exponentialRampToValueAtTime(0.01, time + 4);
+                    }
+
+                    oscillator.connect(gainNode);
+                    gainNode.connect(audioContext.destination);
+                    oscillator.start();
+                } catch (e) {
+                    console.warn('Audio feedback failed:', e);
+                }
+            };
+
+            // Try to start, but might need interaction
+            startSnoring();
+
+            // Add interaction listener in case of blocked auto-play
+            const handleInteraction = () => {
+                if (audioContext?.state === 'suspended') {
+                    audioContext.resume();
+                }
+                window.removeEventListener('click', handleInteraction);
+            };
+            window.addEventListener('click', handleInteraction);
+        }
+
+        return () => {
+            if (oscillator) oscillator.stop();
+            if (audioContext) audioContext.close();
+        };
+    }, [mood]);
 
     // Format Seconds to MM:SS
     const formatTime = (totalSeconds: number) => {
@@ -123,7 +226,7 @@ export const ChildTimer = ({ childId, onTimeExpire }: { childId: string; onTimeE
 
                         {/* Mini Status Badge (always visible) */}
                         <div className={`absolute -bottom-1 -right-1 w-6 h-6 rounded-full border-2 border-white flex items-center justify-center text-[10px] font-bold text-white z-30 shadow-sm ${stats.minutes <= 5 ? 'bg-red-500 animate-pulse' : 'bg-green-500'}`}>
-                            {stats.minutes}
+                            {Math.ceil(stats.minutes)}
                         </div>
                     </div>
 
@@ -244,11 +347,15 @@ export const ChildTimer = ({ childId, onTimeExpire }: { childId: string; onTimeE
                             </div>
 
                             <h1 className="text-4xl font-black mb-4 text-transparent bg-clip-text bg-gradient-to-r from-blue-300 to-indigo-300">
-                                Shhh... I'm Sleeping!
+                                {stats?.isPaused ? "Taking a Little Break!" : "Shhh... I'm Sleeping!"}
                             </h1>
                             <p className="text-xl text-slate-400 font-medium mb-10 leading-relaxed">
-                                You've played enough for today. <br />
-                                <span className="text-yellow-400">Come back tomorrow to play more!</span>
+                                {stats?.isPaused 
+                                    ? "Your parent has paused the screen. Rest your eyes for a bit!" 
+                                    : "You've played enough for today. Come back tomorrow to play more!"
+                                }
+                                <br />
+                                {!stats?.isPaused && <span className="text-yellow-400">Time's Up!</span>}
                             </p>
 
                             {/* Message Only - No Button (Auto-unlocks via Socket/Poll) */}

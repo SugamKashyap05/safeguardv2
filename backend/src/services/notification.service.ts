@@ -1,121 +1,75 @@
-import { supabaseAdmin } from '../config/supabase';
+import prisma from '../config/prisma';
 import { AppError } from '../utils/AppError';
 import { HTTP_STATUS } from '../utils/httpStatus';
 
-export interface CreateNotificationDTO {
-    parentId: string;
-    childId?: string;
-    type: 'screen_time_limit' | 'blocked_content' | 'channel_request' | 'unusual_activity' | 'daily_report' | 'new_child_login';
-    title: string;
-    message: string;
-    priority?: 'low' | 'medium' | 'high';
-    data?: any;
-    actionUrl?: string;
-}
-
 export class NotificationService {
 
-    /**
-     * Create a notification
-     */
-    async create(data: CreateNotificationDTO) {
-        const { error } = await supabaseAdmin
-            .from('notifications')
-            .insert({
-                parent_id: data.parentId,
-                child_id: data.childId,
+    async create(data: {
+        parentId: string;
+        childId?: string;
+        type: string;
+        title: string;
+        message: string;
+        priority?: string;
+        data?: any;
+        actionUrl?: string;
+    }) {
+        return prisma.notification.create({
+            data: {
+                parentId: data.parentId,
+                childId: data.childId,
                 type: data.type,
                 title: data.title,
                 message: data.message,
-                priority: data.priority || 'medium',
-                data: data.data || {},
-                action_url: data.actionUrl,
-                is_read: false
-            });
-
-        if (error) {
-            console.error('Failed to create notification', error);
-            // Don't throw logic error, just log it. Notifications shouldn't break main flows.
-        }
+                priority: data.priority ?? 'medium',
+                data: data.data ?? {},
+                actionUrl: data.actionUrl,
+            },
+        });
     }
 
-    /**
-     * Get notifications for parent
-     */
-    async getAll(parentId: string, page = 1, limit = 20) {
-        const from = (page - 1) * limit;
-        const to = from + limit - 1;
-
-        const { data, error, count } = await supabaseAdmin
-            .from('notifications')
-            .select('*', { count: 'exact' })
-            .eq('parent_id', parentId)
-            .order('created_at', { ascending: false })
-            .range(from, to);
-
-        if (error) throw error;
-
-        return {
-            items: data,
-            total: count,
-            page,
-            limit
-        };
+    async getForParent(parentId: string, limit = 20) {
+        return prisma.notification.findMany({
+            where: { parentId },
+            orderBy: { createdAt: 'desc' },
+            take: limit,
+        });
     }
 
-    /**
-     * Get unread count
-     */
-    async getUnreadCount(parentId: string) {
-        const { count, error } = await supabaseAdmin
-            .from('notifications')
-            .select('*', { count: 'exact', head: true })
-            .eq('parent_id', parentId)
-            .eq('is_read', false);
-
-        if (error) throw error;
-        return { count };
+    async getUnread(parentId: string) {
+        return prisma.notification.findMany({
+            where: { parentId, isRead: false },
+            orderBy: { createdAt: 'desc' },
+        });
     }
 
-    /**
-     * Mark as read
-     */
-    async markAsRead(id: string, parentId: string) {
-        const { error } = await supabaseAdmin
-            .from('notifications')
-            .update({ is_read: true, read_at: new Date() })
-            .eq('id', id)
-            .eq('parent_id', parentId);
+    async markRead(notificationId: string, parentId: string) {
+        const notification = await prisma.notification.findFirst({
+            where: { id: notificationId, parentId },
+        });
+        if (!notification) throw new AppError('Notification not found', HTTP_STATUS.NOT_FOUND);
 
-        if (error) throw error;
-        return true;
+        return prisma.notification.update({
+            where: { id: notificationId },
+            data: { isRead: true, readAt: new Date() },
+        });
     }
 
-    /**
-     * Mark all as read
-     */
-    async markAllAsRead(parentId: string) {
-        const { error } = await supabaseAdmin
-            .from('notifications')
-            .update({ is_read: true, read_at: new Date() })
-            .eq('parent_id', parentId)
-            .eq('is_read', false);
-
-        if (error) throw error;
-        return true;
+    async markAllRead(parentId: string) {
+        await prisma.notification.updateMany({
+            where: { parentId, isRead: false },
+            data: { isRead: true, readAt: new Date() },
+        });
+        return { success: true };
     }
 
-    /**
-     * Delete notification
-     */
-    async delete(id: string, parentId: string) {
-        const { error } = await supabaseAdmin
-            .from('notifications')
-            .delete()
-            .eq('id', id)
-            .eq('parent_id', parentId);
+    async delete(notificationId: string, parentId: string) {
+        const notification = await prisma.notification.findFirst({
+            where: { id: notificationId, parentId },
+        });
+        if (!notification) throw new AppError('Notification not found', HTTP_STATUS.NOT_FOUND);
 
-        if (error) throw error;
-        return true;
+        await prisma.notification.delete({ where: { id: notificationId } });
+        return { success: true };
     }
 }
